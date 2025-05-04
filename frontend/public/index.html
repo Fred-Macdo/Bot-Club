@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bot Club - Automated Trading</title>
+  <style>
+    :root {
+      --primary: #0d372a;
+      --secondary: #f5edd8;
+      --accent: #d4c892;
+      --light: #e6e6e6;
+      --white: #fff;
+    }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    body {
+      background-color: var(--secondary);
+      color: var(--primary);
+      line-height: 1.6;
+    }
+    .container {
+      width: 90%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 15px;
+    }
+    header {
+      background-color: var(--primary);
+      padding: 1rem 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .navbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo {
+      color: var(--secondary);
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+    .nav-links {
+      display: flex;
+      list-style: none;
+    }
+    .nav-links li {
+      margin-left: 2rem;
+    }
+    .nav-links a {
+      color: var(--secondary);
+      text-decoration: none;
+    }
+    .nav-links a:hover {
+      color: var(--accent);
+    }
+    .menu-btn {
+      display: none;
+      color: var(--white);
+      font-size: 1.5rem;
+      cursor: pointer;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.8rem 1.5rem;
+      border-radius: 4px;
+      text-decoration: none;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: var(--primary);
+    }
+    .btn-primary:hover {
+      background: var(--light);
+    }
+    .btn-outline {
+      border: 2px solid var(--secondary);
+      color: var(--secondary);
+    }
+    .btn-outline:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .hero {
+      background: var(--primary);
+      color: var(--secondary);
+      padding: 4rem 0;
+    }
+    .hero-container {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+    }
+    .hero-content {
+      flex: 1;
+    }
+    .hero-image {
+      flex: 1;
+      text-align: center;
+    }
+    .hero-image img {
+      max-width: 100%;
+      border-radius: 8px;
+      border: 4px solid var(--accent);
+    }
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+    }
+    .subtitle {
+      font-size: 1.2rem;
+      color: var(--accent);
+      margin-bottom: 2rem;
+    }
+    .section {
+      padding: 4rem 0;
+    }
+    .section-title {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 2rem;
+    }
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 2rem;
+    }
+    .feature-card {
+      background: var(--white);
+      border-radius: 8px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      transition: transform 0.3s;
+    }
+    .feature-card:hover {
+      transform: translateY(-10px);
+    }
+    .icon {
+      font-size: 2.5rem;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    .pricing {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+    }
+    .price-card {
+      background: var(--white);
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    .price-card.popular {
+      transform: scale(1.05);
+      border: 2px solid var(--accent);
+      position: relative;
+      z-index: 1;
+    }
+    .popular-tag {
+      background: var(--accent);
+      color: var(--primary);
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      position: absolute;
+      top: -15px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-weight: bold;
+    }
+    .price {
+      font-size: 2.5rem;
+      font-weight: bold;
+      margin: 1rem 0;
+    }
+    .price-period {
+      font-size: 1rem;
+      color: #666;
+    }
+    .testimonials {
+      background: var(--primary);
+      color: var(--secondary);
+    }
+    .testimonial-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+    }
+    .testimonial-card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 1.5rem;
+    }
+    .testimonial-text {
+      font-style: italic;
+      margin-bottom: 1rem;
+    }
+    .author {
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .cta {
+      background: var(--secondary);
+      border: 2px solid var(--accent);
+      border-radius: 8px;
+      padding: 3rem;
+      text-align: center;
+      margin: 0 auto;
+      max-width: 800px;
+    }
+    .cta-title {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+    .cta-form {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .cta-input {
+      padding: 0.8rem;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      width: 300px;
+    }
+    footer {
+      background: var(--primary);
+      color: var(--secondary);
+      padding: 3rem 0 1rem;
+    }
+    .footer-columns {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 2rem;
+    }
+    .footer-column h3 {
+      margin-bottom: 1rem;
+    }
+    .footer-links {
+      list-style: none;
+    }
+    .footer-links li {
+      margin-bottom: 0.5rem;
+    }
+    .footer-links a {
+      color: var(--secondary);
+      opacity: 0.7;
+      text-decoration: none;
+    }
+    .footer-links a:hover {
+      opacity: 1;
+    }
+    .copyright {
+      text-align: center;
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      font-size: 0.9rem;
+      opacity: 0.7;
+    }
+
+    @media (max-width: 768px) {
+      .menu-btn {
+        display: block;
+      }
+      .nav-links {
+        display: none;
+      }
+      .hero-container {
+        flex-direction: column;
+      }
+      .footer-columns {
+        grid-template-columns: 1fr 1fr;
+      }
+      .cta-form {
+        flex-direction: column;
+        align-items: center;
+      }
+      .cta-input {
+        width: 100%;
+      }
+    }
+
+    /* Hide desktop login button on mobile, show in desktop */
+    .login-desktop {
+      display: inline-block;
+      margin-left: 2rem;
+    }
+    @media (max-width: 768px) {
+      .login-desktop {
+        display: none;
+      }
+      .nav-links .login-link {
+        display: block;
+        margin: 1rem 0 0 0;
+        text-align: center;
+      }
+      .nav-links .login-link .btn {
+        width: 100%;
+        box-sizing: border-box;
+      }
+    }
+    @media (min-width: 769px) {
+      .nav-links .login-link {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+</body>
+</html>
