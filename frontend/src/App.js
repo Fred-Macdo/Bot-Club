@@ -1,6 +1,5 @@
 import React from 'react';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
-import Navbar from './components/common/Navbar'; // Add this import
 import CssBaseline from '@mui/material/CssBaseline';
 import AppRouter from './components/router/AppRouter';
 

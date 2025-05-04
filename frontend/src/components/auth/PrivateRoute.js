@@ -1,6 +1,8 @@
+// 5. Update PrivateRoute.js to use the correct AuthContext
+// /frontend/src/components/auth/PrivateRoute.js
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from './AuthContext';
+import { useAuth } from '../router/AuthContext'; // Updated path
 import { Box, CircularProgress, Typography } from '@mui/material';
 
 const PrivateRoute = () => {

@@ -1,18 +1,10 @@
-// src/components/router/AuthContext.jsx
+// 3. Use a single AuthContext implementation
+// /frontend/src/router/AuthContext.js
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
 
-import { createContext, useState, useEffect, useContext } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-// Create a single supabase client for interacting with your database
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-// Create a context for authentication
 const AuthContext = createContext();
 
-// AuthProvider component to wrap your app
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
@@ -41,6 +33,7 @@ export function AuthProvider({ children }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user || null);
+      setLoading(false);
     });
 
     // Cleanup subscription on unmount
@@ -49,13 +42,11 @@ export function AuthProvider({ children }) {
 
   // Auth value to be provided throughout the app
   const value = {
-    supabase,
     user,
     session,
     loading,
     signUp: (data) => supabase.auth.signUp(data),
     signIn: (data) => supabase.auth.signInWithPassword(data),
-    signInWithProvider: (provider) => supabase.auth.signInWithOAuth({ provider }),
     signOut: () => supabase.auth.signOut(),
   };
 
