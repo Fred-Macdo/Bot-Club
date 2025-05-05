@@ -32,6 +32,8 @@ import {
   TrendingUp, 
   Zap
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import logo from '../../assets/images/bot-logo.png';
 
 // Custom styled components
 const StyledCard = styled(Card)(({ theme, popular }) => ({
@@ -107,6 +109,17 @@ const LandingPage = () => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Handle smooth scrolling for anchor links
+  const scrollToSection = (event, sectionId) => {
+    event.preventDefault();
+    const section = document.getElementById(sectionId);
+    if (section) {
+      const yOffset = -80; // Account for navbar height
+      const y = section.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+  };
 
   // Handle tab change
   const handleTabChange = (event, newValue) => {
@@ -244,26 +257,64 @@ const LandingPage = () => {
   // Navigation drawer for mobile
   const drawerContent = (
     <Box
-      sx={{ width: 250 }}
+      sx={{ width: 250, bgcolor: customColors.primary, height: '100%' }}
       role="presentation"
       onClick={toggleDrawer(false)}
       onKeyDown={toggleDrawer(false)}
     >
       <List>
-        {['Strategies', 'Pricing'].map((text, index) => (
-          <ListItem button key={text} component="a" href={`#${text.toLowerCase()}`}>
-            <ListItemText primary={text} />
-          </ListItem>
-        ))}
-        <ListItem>
+        <ListItem sx={{ justifyContent: 'center', mb: 2, mt: 2 }}>
+          <Typography
+            variant="h6"
+            component="div"
+            sx={{
+              color: customColors.accent,
+              textDecoration: 'none',
+              fontWeight: 700,
+              letterSpacing: 1,
+            }}
+          >
+            BOT CLUB
+          </Typography>
+        </ListItem>
+        <ListItem component="a" href="#strategies" button onClick={(e) => scrollToSection(e, 'strategies')}>
+          <ListItemText primary="Features" primaryTypographyProps={{ sx: { color: customColors.secondary } }} />
+        </ListItem>
+        <ListItem component="a" href="#pricing" button onClick={(e) => scrollToSection(e, 'pricing')}>
+          <ListItemText primary="Pricing" primaryTypographyProps={{ sx: { color: customColors.secondary } }} />
+        </ListItem>
+        <ListItem component="a" href="/dashboard" button>
+          <ListItemText primary="Dashboard" primaryTypographyProps={{ sx: { color: customColors.secondary } }} />
+        </ListItem>
+        <ListItem sx={{ mt: 2 }}>
           <Button
             variant="contained"
             fullWidth
+            component="a"
+            href="/login"
             sx={{
               bgcolor: customColors.accent,
               color: customColors.primary,
               '&:hover': {
                 bgcolor: customColors.light
+              }
+            }}
+          >
+            Login
+          </Button>
+        </ListItem>
+        <ListItem sx={{ mt: 1 }}>
+          <Button
+            variant="outlined"
+            fullWidth
+            component="a"
+            href="/register"
+            sx={{
+              borderColor: customColors.accent,
+              color: customColors.accent,
+              '&:hover': {
+                borderColor: customColors.light,
+                bgcolor: 'rgba(245, 237, 216, 0.1)'
               }
             }}
           >
@@ -277,7 +328,116 @@ const LandingPage = () => {
   return (
     <Box sx={{ overflow: 'hidden' }}>
       {/* Navigation */}
+      <AppBar 
+        position="fixed" 
+        elevation={isScrolled ? 4 : 0}
+        sx={{ 
+          bgcolor: customColors.primary,
+          transition: 'box-shadow 0.3s ease',
+        }}
+      >
+        <Container maxWidth="lg">
+          <Toolbar disableGutters>
+            {/* Logo and Brand */}
+            <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
+              <Box 
+                component="img" 
+                src={logo} 
+                alt="Bot Club"
+                sx={{ 
+                  height: 40, 
+                  mr: 1,
+                  display: { xs: 'none', sm: 'block' } 
+                }} 
+              />
+              <Typography
+                variant="h6"
+                component="a"
+                href="/"
+                sx={{
+                  color: customColors.accent,
+                  textDecoration: 'none',
+                  fontWeight: 700,
+                  letterSpacing: 1,
+                }}
+              >
+                BOT CLUB
+              </Typography>
+            </Box>
 
+            {/* Desktop Navigation */}
+            {!isMobile && (
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Button
+                  href="#strategies"
+                  onClick={(e) => scrollToSection(e, 'strategies')}
+                  sx={{ 
+                    color: customColors.secondary,
+                    mx: 1,
+                    '&:hover': {
+                      color: customColors.accent
+                    }
+                  }}
+                >
+                  Features
+                </Button>
+                <Button
+                  href="#pricing"
+                  onClick={(e) => scrollToSection(e, 'pricing')}
+                  sx={{ 
+                    color: customColors.secondary,
+                    mx: 1,
+                    '&:hover': {
+                      color: customColors.accent
+                    }
+                  }}
+                >
+                  Pricing
+                </Button>
+                <Button
+                  href="/dashboard"
+                  sx={{ 
+                    color: customColors.secondary,
+                    mx: 1,
+                    '&:hover': {
+                      color: customColors.accent
+                    }
+                  }}
+                >
+                  Dashboard
+                </Button>
+                <Button
+                  variant="contained"
+                  href="/login"
+                  sx={{
+                    ml: 2,
+                    bgcolor: customColors.accent,
+                    color: customColors.primary,
+                    '&:hover': {
+                      bgcolor: customColors.light
+                    }
+                  }}
+                >
+                  Login
+                </Button>
+              </Box>
+            )}
+
+            {/* Mobile Menu Button */}
+            {isMobile && (
+              <IconButton
+                edge="end"
+                color="inherit"
+                aria-label="menu"
+                onClick={toggleDrawer(true)}
+                sx={{ color: customColors.secondary }}
+              >
+                <MenuIcon />
+              </IconButton>
+            )}
+          </Toolbar>
+        </Container>
+      </AppBar>
 
       {/* Mobile Drawer */}
       <Drawer
@@ -293,7 +453,7 @@ const LandingPage = () => {
         sx={{ 
           bgcolor: customColors.primary,
           color: customColors.secondary,
-          pt: 8,
+          pt: { xs: 12, sm: 14 },
           pb: 8
         }}
       >

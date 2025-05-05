@@ -1,7 +1,10 @@
 import React from 'react';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import { BrowserRouter } from 'react-router-dom';
 import AppRouter from './components/router/AppRouter';
+import { StrategyProvider } from './context/StrategyContext';
+import { AuthProvider } from './components/router/AuthContext';
 
 // Create theme
 const theme = createTheme({
@@ -39,7 +42,13 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AppRouter />
+      <AuthProvider>
+        <StrategyProvider>
+          <BrowserRouter>
+            <AppRouter />
+          </BrowserRouter>
+        </StrategyProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

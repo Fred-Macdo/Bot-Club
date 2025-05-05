@@ -15,28 +15,42 @@ import {
   Settings as SettingsIcon,
   Science as ScienceIcon,
   ShowChart as ShowChartIcon,
-  Key as KeyIcon,
+  Bolt as LiveIcon,
+  AccountCircle as AccountIcon,
   Logout as LogoutIcon
 } from '@mui/icons-material';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../router/AuthContext';
 import logo from '../../assets/images/bot-logo.png';
 
 const drawerWidth = 240;
 
-const Sidebar = ({ onLogout }) => {
+const Sidebar = () => {
   const theme = useTheme();
   const location = useLocation();
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
 
   const menuItems = [
     { label: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-    { label: 'Configurations', icon: <SettingsIcon />, path: '/config' },
+    { label: 'Strategy Builder', icon: <SettingsIcon />, path: '/strategy-builder' },
     { label: 'Backtest', icon: <ScienceIcon />, path: '/backtest' },
-    { label: 'Trading', icon: <ShowChartIcon />, path: '/trading' },
-    { label: 'API Keys', icon: <KeyIcon />, path: '/keys' },
+    { label: 'Paper Trading', icon: <ShowChartIcon />, path: '/paper-trading' },
+    { label: 'Live Trading', icon: <LiveIcon />, path: '/live-trading' },
+    { label: 'Account', icon: <AccountIcon />, path: '/account' },
   ];
 
   const isActive = (path) => {
-    return location.pathname === path;
+    return location.pathname === path || location.pathname.startsWith(`${path}/`);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   return (
@@ -55,7 +69,16 @@ const Sidebar = ({ onLogout }) => {
       anchor="left"
     >
       {/* Logo and Title */}
-      <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Box 
+        sx={{ 
+          p: 2, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          cursor: 'pointer'
+        }}
+        onClick={() => navigate('/dashboard')}
+      >
         <Box component="img" src={logo} alt="Bot Club" sx={{ height: 50, mr: 1 }} />
         <Typography variant="h6" sx={{ fontWeight: 700 }}>
           BOT CLUB
@@ -101,7 +124,7 @@ const Sidebar = ({ onLogout }) => {
         <Divider sx={{ bgcolor: 'rgba(245, 237, 216, 0.2)', mb: 1 }} />
         <ListItem 
           button 
-          onClick={onLogout}
+          onClick={handleLogout}
           sx={{
             color: theme.palette.secondary.main,
             '&:hover': {

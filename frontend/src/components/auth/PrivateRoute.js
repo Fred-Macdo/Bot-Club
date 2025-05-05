@@ -1,12 +1,22 @@
 // 5. Update PrivateRoute.js to use the correct AuthContext
 // /frontend/src/components/auth/PrivateRoute.js
-import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../router/AuthContext'; // Updated path
 import { Box, CircularProgress, Typography } from '@mui/material';
 
 const PrivateRoute = () => {
   const { user, loading } = useAuth();
+  const location = useLocation();
+
+  // Add debug logging for authentication state
+  useEffect(() => {
+    console.log('PrivateRoute - Auth State:', { 
+      isAuthenticated: !!user, 
+      isLoading: loading,
+      path: location.pathname
+    });
+  }, [user, loading, location]);
 
   if (loading) {
     return (
@@ -29,8 +39,20 @@ const PrivateRoute = () => {
     );
   }
 
+  // For development purposes, allow access even without authentication
+  if (process.env.NODE_ENV === 'development' && !user) {
+    console.warn('DEV MODE: Bypassing authentication check for development');
+    return <Outlet />;
+  }
+
   // If not authenticated, redirect to login
-  return user ? <Outlet /> : <Navigate to="/login" />;
+  if (!user) {
+    console.log('Not authenticated, redirecting to login');
+    return <Navigate to="/login" state={{ from: location }} />;
+  }
+
+  console.log('Authentication successful, rendering protected route');
+  return <Outlet />;
 };
 
 export default PrivateRoute;

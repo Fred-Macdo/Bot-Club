@@ -1,7 +1,7 @@
 // 3. Use a single AuthContext implementation
 // /frontend/src/router/AuthContext.js
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 const AuthContext = createContext();
 
@@ -40,6 +40,19 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Sign out function
+  const signOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+      setSession(null);
+      return { error: null };
+    } catch (error) {
+      console.error('Error signing out:', error);
+      return { error };
+    }
+  };
+
   // Auth value to be provided throughout the app
   const value = {
     user,
@@ -47,7 +60,8 @@ export function AuthProvider({ children }) {
     loading,
     signUp: (data) => supabase.auth.signUp(data),
     signIn: (data) => supabase.auth.signInWithPassword(data),
-    signOut: () => supabase.auth.signOut(),
+    signOut,
+    isAuthenticated: !!user
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
