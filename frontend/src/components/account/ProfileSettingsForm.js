@@ -14,7 +14,7 @@ import {
   Fade,
   useTheme,
   IconButton,
-  Stack,
+  Stack, 
   Typography
 } from '@mui/material';
 import { PhotoCamera as PhotoCameraIcon } from '@mui/icons-material';
@@ -143,8 +143,8 @@ const ProfileSettings = () => {
   };
 
   return (
-    <Card variant="outlined" sx={{ maxWidth: 600, margin: 'auto', mt: 4 }}>
-      <Typography variant="h6" gutterBottom color={theme.palette.secondary.main} sx={{ p: 2 }}>
+    <Card variant="outlined" sx={{ maxWidth: 600, margin: 'auto', mt: 4, color: theme.palette.primary.main }}>
+      <Typography variant="h6" gutterBottom color={theme.palette.primary.main} sx={{ p: 2 }}>
         Profile Settings
       </Typography>
       <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>

@@ -402,7 +402,7 @@ const StrategyBuilderPage = () => {
   };
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', justifyContent: 'flex-start', height: '100vh' }}>
       <Sidebar />
       <Box sx={{ flexGrow: 1, height: '100vh', overflow: 'auto' }}>
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
@@ -430,7 +430,7 @@ const StrategyBuilderPage = () => {
 
           <Grid container spacing={3}>
             {/* Strategy Selection */}
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={6}>
               <Card title="Strategy Library">
                 <TextField
                   fullWidth
@@ -515,7 +515,7 @@ const StrategyBuilderPage = () => {
                   )}
 
                   {/* Indicators Tab */}
-                  {activeTab === 3 && (
+                  {activeTab === 1 && (
                     <IndicatorsTab 
                       indicators={strategyConfig.indicators}
                       onAddIndicator={handleAddIndicator}
@@ -525,7 +525,7 @@ const StrategyBuilderPage = () => {
                   )}
 
                   {/* Entry Conditions Tab */}
-                  {activeTab === 1 && (
+                  {activeTab === 2 && (
                     <ConditionsTab 
                       conditions={strategyConfig.entry_conditions}
                       indicators={strategyConfig.indicators}
@@ -536,7 +536,7 @@ const StrategyBuilderPage = () => {
                   )}
 
                   {/* Exit Conditions Tab */}
-                  {activeTab === 2 && (
+                  {activeTab === 3 && (
                     <ConditionsTab 
                       conditions={strategyConfig.exit_conditions}
                       indicators={strategyConfig.indicators}
@@ -1079,8 +1079,6 @@ const IndicatorsTab = ({
 
 // Risk Management Tab Component
 const RiskManagementTab = ({ riskManagement, onUpdateRiskManagement }) => {
-  const theme = useTheme();
-
   // Position sizing methods
   const positionSizingMethods = [
     { value: 'risk_based', label: 'Risk Based' },
@@ -1091,123 +1089,88 @@ const RiskManagementTab = ({ riskManagement, onUpdateRiskManagement }) => {
 
   return (
     <Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
       <Typography variant="h6" sx={{ mb: 3 }}>Risk Management Settings</Typography>
       
-      <Grid container spacing={3}>
-        <Grid item xs={12} sm={6}>
-          <FormControl fullWidth size="small" sx={{ mb: 3 }}>
-            <InputLabel>Position Sizing Method</InputLabel>
-            <Select
-              value={riskManagement.position_sizing_method}
-              onChange={(e) => onUpdateRiskManagement('position_sizing_method', e.target.value)}
-              label="Position Sizing Method"
-            >
-              {positionSizingMethods.map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Grid>
-        
-        <Grid item xs={12} sm={6}>
-          <TextField
-            fullWidth
-            size="small"
-            label="Risk Per Trade (%)"
-            type="number"
-            value={riskManagement.risk_per_trade * 100}
-            onChange={(e) => onUpdateRiskManagement('risk_per_trade', parseFloat(e.target.value) / 100)}
-            InputProps={{ 
-              inputProps: { min: 0.01, max: 100, step: 0.1 },
-              endAdornment: <Typography variant="caption" sx={{ ml: 1 }}>%</Typography>
-            }}
-            sx={{ mb: 3 }}
-          />
-        </Grid>
-        
-        <Grid item xs={12} sm={6}>
-          <TextField
-            fullWidth
-            size="small"
-            label="Stop Loss (%)"
-            type="number"
-            value={riskManagement.stop_loss * 100}
-            onChange={(e) => onUpdateRiskManagement('stop_loss', parseFloat(e.target.value) / 100)}
-            InputProps={{ 
-              inputProps: { min: 0.01, max: 100, step: 0.1 },
-              endAdornment: <Typography variant="caption" sx={{ ml: 1 }}>%</Typography>
-            }}
-            sx={{ mb: 3 }}
-          />
-        </Grid>
-        
-        <Grid item xs={12} sm={6}>
-          <TextField
-            fullWidth
-            size="small"
-            label="Take Profit (%)"
-            type="number"
-            value={riskManagement.take_profit * 100}
-            onChange={(e) => onUpdateRiskManagement('take_profit', parseFloat(e.target.value) / 100)}
-            InputProps={{ 
-              inputProps: { min: 0.01, max: 100, step: 0.1 },
-              endAdornment: <Typography variant="caption" sx={{ ml: 1 }}>%</Typography>
-            }}
-            sx={{ mb: 3 }}
-          />
-        </Grid>
-        
-        <Grid item xs={12} sm={6}>
-          <TextField
-            fullWidth
-            size="small"
-            label="Max Position Size"
-            type="number"
-            value={riskManagement.max_position_size}
-            onChange={(e) => onUpdateRiskManagement('max_position_size', parseFloat(e.target.value))}
-            InputProps={{ inputProps: { min: 1 } }}
-            sx={{ mb: 3 }}
-          />
-        </Grid>
-        
-        <Grid item xs={12} sm={6}>
-          <TextField
-            fullWidth
-            size="small"
-            label="ATR Multiplier"
-            type="number"
-            value={riskManagement.atr_multiplier}
-            onChange={(e) => onUpdateRiskManagement('atr_multiplier', parseFloat(e.target.value))}
-            InputProps={{ inputProps: { min: 0.1, step: 0.1 } }}
-            sx={{ mb: 3 }}
-            disabled={riskManagement.position_sizing_method !== 'atr_based'}
-          />
-        </Grid>
-      </Grid>
-      
-      <Divider sx={{ my: 3 }} />
-      
-      <Box sx={{ 
-        p: 2, 
-        borderRadius: 1, 
-        bgcolor: theme.palette.info.light, 
-        color: theme.palette.info.contrastText 
-      }}>
-        <Typography variant="subtitle2">About Risk Management</Typography>
-        <Typography variant="body2" sx={{ mt: 1 }}>
-          <strong>Risk Based Sizing:</strong> Calculates position size based on account risk per trade and stop loss distance.
-        </Typography>
-        <Typography variant="body2" sx={{ mt: 1 }}>
-          <strong>ATR Based Sizing:</strong> Uses Average True Range to determine position size and stop loss levels.
-        </Typography>
-        <Typography variant="body2" sx={{ mt: 1 }}>
-          <strong>Fixed Sizing:</strong> Uses a constant position size for all trades.
-        </Typography>
-        <Typography variant="body2" sx={{ mt: 1 }}>
-          <strong>Percentage Sizing:</strong> Uses a percentage of available capital for each trade.
-        </Typography>
+      {/* Form elements will now stack vertically with margin for spacing */}
+      <FormControl size="small" sx={{ mb: 3 }}>
+        <InputLabel>Position Sizing Method</InputLabel>
+        <Select
+          value={riskManagement.position_sizing_method}
+          onChange={(e) => onUpdateRiskManagement('position_sizing_method', e.target.value)}
+          label="Position Sizing Method"
+        >
+          {positionSizingMethods.map((option) => (
+            <MenuItem key={option.value} value={option.value}>
+              {option.label}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+      </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <TextField
+        size="small"
+        label="Risk Per Trade (%)"
+        type="number"
+        value={riskManagement.risk_per_trade * 100}
+        onChange={(e) => onUpdateRiskManagement('risk_per_trade', parseFloat(e.target.value) / 100)}
+        InputProps={{ 
+          inputProps: { min: 0.01, max: 100, step: 0.1 },
+          endAdornment: <Typography variant="caption" sx={{ ml: 1 }}>%</Typography>
+        }}
+        sx={{ mb: 3 }}
+      />
+      </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <TextField
+        size="small"
+        label="Stop Loss (%)"
+        type="number"
+        value={riskManagement.stop_loss * 100}
+        onChange={(e) => onUpdateRiskManagement('stop_loss', parseFloat(e.target.value) / 100)}
+        InputProps={{ 
+          inputProps: { min: 0.01, max: 100, step: 0.1 },
+          endAdornment: <Typography variant="caption" sx={{ ml: 1 }}>%</Typography>
+        }}
+        sx={{ mb: 3 }}
+      />
+      </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <TextField
+        size="small"
+        label="Take Profit (%)"
+        type="number"
+        value={riskManagement.take_profit * 100}
+        onChange={(e) => onUpdateRiskManagement('take_profit', parseFloat(e.target.value) / 100)}
+        InputProps={{ 
+          inputProps: { min: 0.01, max: 100, step: 0.1 },
+          endAdornment: <Typography variant="caption" sx={{ ml: 1 }}>%</Typography>
+        }}
+        sx={{ mb: 3 }}
+      />
+      </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <TextField
+        size="small"
+        label="Max Position Size"
+        type="number"
+        value={riskManagement.max_position_size}
+        onChange={(e) => onUpdateRiskManagement('max_position_size', parseFloat(e.target.value))}
+        InputProps={{ inputProps: { min: 1 } }}
+        sx={{ mb: 3 }}
+      />
+      </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <TextField
+        size="small"
+        label="ATR Multiplier"
+        type="number"
+        value={riskManagement.atr_multiplier}
+        onChange={(e) => onUpdateRiskManagement('atr_multiplier', parseFloat(e.target.value))}
+        InputProps={{ inputProps: { min: 0.1, step: 0.1 } }}
+        disabled={riskManagement.position_sizing_method !== 'atr_based'}
+      />
       </Box>
     </Box>
   );

@@ -425,7 +425,7 @@ const Backtest = () => {
         ) : (
           <>
             <Grid container spacing={3}>
-              <Grid item xs={12} md={8}>
+              <Grid item xs={12} md={12}>
                 <Paper sx={{ p: 3, borderRadius: 2, mb: 3 }}>
                   <Typography variant="h6" gutterBottom>
                     Equity Curve
