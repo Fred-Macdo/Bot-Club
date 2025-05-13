@@ -9,7 +9,8 @@ import {
   useTheme 
 } from '@mui/material';
 //import { useAuth } from '../auth/AuthContext';
-import AlpacaConfigForm from '../dashboard/AlpacaConfigForm';
+import AlpacaConfigForm from './AlpacaConfigForm';
+import ProfileSettings from './ProfileSettingsForm';
 
 const AccountSettings = () => {
   const theme = useTheme();
@@ -21,10 +22,7 @@ const AccountSettings = () => {
   
   return (
     <Box>
-      <Typography variant="h4" component="h1" gutterBottom sx={{ color: theme.palette.primary.main, fontWeight: 700 }}>
-        Account Settings
-      </Typography>
-      
+
       <Paper elevation={1} sx={{ borderRadius: 2 }}>
         <Tabs 
           value={activeTab} 
@@ -35,20 +33,30 @@ const AccountSettings = () => {
             bgcolor: theme.palette.primary.main,
             borderRadius: '8px 8px 0 0',
             '& .MuiTab-root': { color: theme.palette.secondary.main },
-            '& .Mui-selected': { color: theme.palette.accent.main }
+            '& .Mui-selected': { color: '#B8DABB' }
           }}
           TabIndicatorProps={{
-            style: { backgroundColor: theme.palette.accent.main }
+            style: {
+              backgroundColor: '#FFD700', // Change indicator color
+              height: 4,
+              borderRadius: 2,
+            }
           }}
         >
-          <Tab label="Alpaca API" />
           <Tab label="Profile" />
+          <Tab label="Alpaca API" />
           <Tab label="Security" />
           <Tab label="Notification Preferences" />
         </Tabs>
         
         <Box sx={{ p: 3 }}>
           {activeTab === 0 && (
+            <Box>
+              <ProfileSettings />
+            </Box>
+          )}
+          
+          {activeTab === 1 && (
             <Box>
               <Typography variant="h6" gutterBottom>
                 Alpaca API Configuration
@@ -57,18 +65,6 @@ const AccountSettings = () => {
                 Configure your Alpaca trading account API credentials. These credentials are used to connect to the Alpaca API for paper trading and live trading.
               </Typography>
               <AlpacaConfigForm />
-            </Box>
-          )}
-          
-          {activeTab === 1 && (
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                Profile Settings
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
-                Update your profile information and preferences.
-              </Typography>
-              {/* Profile settings form would go here */}
             </Box>
           )}
           

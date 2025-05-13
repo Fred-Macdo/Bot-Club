@@ -26,7 +26,7 @@ import {
   Delete as DeleteIcon,
   Add as AddIcon
 } from '@mui/icons-material';
-import Navbar from '../common/Navbar';
+// import Navbar from '../common/Navbar';
 import Sidebar from '../common/Sidebar';
 import Button from '../common/Button';
 import Card from '../common/Card';
@@ -242,6 +242,10 @@ const StrategyBuilderPage = () => {
     //     console.error('Error loading strategy:', error);
     //   });
 
+    const handleBacktest = (strategyId) => {
+      // This would point to the Backtest tab and begin to run the Backtest live. 
+      console.log("Backtest Backtest")
+    }
     // Mock load strategy
     const strategy = savedStrategies.find(s => s.id === strategyId);
     if (strategy) {
@@ -401,12 +405,9 @@ const StrategyBuilderPage = () => {
     <Box sx={{ display: 'flex' }}>
       <Sidebar />
       <Box sx={{ flexGrow: 1, height: '100vh', overflow: 'auto' }}>
-        <Navbar />
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Typography variant="h4" component="h1" sx={{ color: theme.palette.primary.main }}>
-              Trading Strategy Builder
-            </Typography>
+
             <Box sx={{ display: 'flex', gap: 2 }}>
               <Button 
                 variant="outlined" 
@@ -420,6 +421,7 @@ const StrategyBuilderPage = () => {
                 variant="contained" 
                 color="accent"
                 startIcon={<RunIcon />}
+                // onClick={handleBacktest}
               >
                 Backtest
               </Button>
@@ -491,13 +493,13 @@ const StrategyBuilderPage = () => {
                     '& .Mui-selected': { color: theme.palette.accent.main }
                   }}
                   TabIndicatorProps={{
-                    style: { backgroundColor: theme.palette.accent.main }
+                    style: { backgroundColor: theme.palette.secondary.main }
                   }}
                 >
                   <Tab label="General" />
-                  <Tab label="Entry Conditions" />
-                  <Tab label="Exit Conditions" />
                   <Tab label="Indicators" />
+                  <Tab label="Entry Conditions" />
+                  <Tab label="Exit Conditions" />                  
                   <Tab label="Risk Management" />
                 </Tabs>
                 <Box sx={{ p: 3 }}>
@@ -509,6 +511,16 @@ const StrategyBuilderPage = () => {
                       onUpdateTimeframe={(value) => setStrategyConfig(prev => ({ ...prev, timeframe: value }))}
                       onUpdateStartDate={(value) => setStrategyConfig(prev => ({ ...prev, start_date: value }))}
                       onUpdateEndDate={(value) => setStrategyConfig(prev => ({ ...prev, end_date: value }))}
+                    />
+                  )}
+
+                  {/* Indicators Tab */}
+                  {activeTab === 3 && (
+                    <IndicatorsTab 
+                      indicators={strategyConfig.indicators}
+                      onAddIndicator={handleAddIndicator}
+                      onUpdateIndicator={handleUpdateIndicator}
+                      onDeleteIndicator={handleDeleteIndicator}
                     />
                   )}
 
@@ -531,16 +543,6 @@ const StrategyBuilderPage = () => {
                       onAddCondition={handleAddExitCondition}
                       onUpdateCondition={handleUpdateExitCondition}
                       onDeleteCondition={handleDeleteExitCondition}
-                    />
-                  )}
-
-                  {/* Indicators Tab */}
-                  {activeTab === 3 && (
-                    <IndicatorsTab 
-                      indicators={strategyConfig.indicators}
-                      onAddIndicator={handleAddIndicator}
-                      onUpdateIndicator={handleUpdateIndicator}
-                      onDeleteIndicator={handleDeleteIndicator}
                     />
                   )}
 

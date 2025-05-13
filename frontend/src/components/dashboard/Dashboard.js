@@ -16,21 +16,27 @@ import {
   ListItemIcon,
   Chip,
   useTheme,
-  CircularProgress
+  CircularProgress,
+  Drawer,
+  IconButton
 } from '@mui/material';
 import { 
   TrendingUp,
   TrendingDown,
   ShowChart,
   Schedule,
-  CheckCircle,
+  CheckCircle as CheckCircleIcon,
   Cancel,
-  Error,
+  Error as ErrorIcon,
   Timeline,
   BarChart,
-  Notifications
+  Notifications as NotificationsIcon,
+  Info as InfoIcon,
+  Warning as WarningIcon,
+  ZoomIn as ZoomInIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import Plot from 'react-plotly.js'; // Import Plotly
 
 // Mock data - in a real app, you would fetch this from your API
 const mockStrategies = [
@@ -57,6 +63,14 @@ const mockStrategies = [
     performance: '-2.3%', 
     positive: false,
     lastRun: '1 day ago'
+  },
+  { 
+    id: 4, 
+    name: 'MACD Strategy', 
+    status: 'active', 
+    performance: '+5.1%', 
+    positive: true,
+    lastRun: '4 hours ago'
   }
 ];
 
@@ -143,6 +157,14 @@ const Dashboard = () => {
   const [recentTrades, setRecentTrades] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [accountSummary, setAccountSummary] = useState({});
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+    
+  // New state for equity curves
+  const [accountEquityData, setAccountEquityData] = useState([]);
+  const [strategyEquityData, setStrategyEquityData] = useState({});
+  const [accountPlotData, setAccountPlotData] = useState([]);
+  const [accountPlotLayout, setAccountPlotLayout] = useState({});
+  const [selectedStrategy, setSelectedStrategy] = useState(null);
 
   // Simulating data loading
   useEffect(() => {
@@ -156,12 +178,165 @@ const Dashboard = () => {
         setRecentTrades(mockTrades);
         setAlerts(mockAlerts);
         setAccountSummary(mockAccountSummary);
+        
+        // Generate mock equity data
+        const mockEquityData = generateMockEquityData();
+        setAccountEquityData(mockEquityData);
+        
+        // Generate mock equity data for each strategy
+        const strategyData = {};
+        mockStrategies.forEach(strategy => {
+          strategyData[strategy.id] = generateMockEquityData(
+            10000,  // Initial value
+            60,     // Number of days
+            strategy.positive ? 0.8 : 0.3  // Trend factor (higher for positive performing strategies)
+          );
+        });
+        setStrategyEquityData(strategyData);
+        
         setLoading(false);
       }, 1000);
     };
 
     fetchData();
   }, []);
+
+    
+  // Generate account equity curve data when accountEquityData changes
+  useEffect(() => {
+    if (accountEquityData.length > 0) {
+      const equityTrace = {
+        x: accountEquityData.map(d => d.date),
+        y: accountEquityData.map(d => d.value),
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Account Equity',
+        line: { color: theme.palette.primary.main, width: 2 }
+      };
+      
+      // Calculate 7-day moving average for smoother trend line
+      const movingAvgData = calculateMovingAverage(accountEquityData, 7);
+      const movingAvgTrace = {
+        x: movingAvgData.map(d => d.date),
+        y: movingAvgData.map(d => d.value),
+        type: 'scatter',
+        mode: 'lines',
+        name: '7-Day MA',
+        line: { color: theme.palette.secondary.main, width: 1.5, dash: 'dot' }
+      };
+      
+      setAccountPlotData([equityTrace, movingAvgTrace]);
+      
+      setAccountPlotLayout({
+        autosize: true,
+        margin: { l: 50, r: 20, b: 40, t: 10, pad: 0 },
+        xaxis: {
+          showgrid: false,
+          zeroline: false,
+          showticklabels: true,
+          gridcolor: theme.palette.divider,
+          linecolor: theme.palette.text.secondary,
+          tickfont: { color: theme.palette.text.secondary, size: 10 }
+        },
+        yaxis: {
+          showgrid: true,
+          zeroline: false,
+          gridcolor: theme.palette.divider,
+          linecolor: theme.palette.text.secondary,
+          tickfont: { color: theme.palette.text.secondary, size: 10 },
+          tickformat: '$,.0f'
+        },
+        showlegend: false,
+        plot_bgcolor: theme.palette.background.paper,
+        paper_bgcolor: theme.palette.background.paper,
+        font: { color: theme.palette.text.primary },
+        hovermode: 'closest'
+      });
+    }
+  }, [accountEquityData, theme.palette]);
+
+  // Function to generate mock equity data
+  const generateMockEquityData = (initialValue = 10000, days = 90, trendFactor = 0.6) => {
+    const data = [];
+    let currentValue = initialValue;
+    const now = new Date();
+    
+    for (let i = days; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      
+      // Skip weekends
+      if (date.getDay() === 0 || date.getDay() === 6) {
+        continue;
+      }
+      
+      // Random daily change with trend bias
+      const randomFactor = Math.random();
+      const dailyChange = (randomFactor > trendFactor) 
+        ? -(Math.random() * 2) // Negative day
+        : (Math.random() * 2.5); // Positive day (slightly higher to create uptrend)
+        
+      currentValue = currentValue * (1 + (dailyChange / 100));
+      
+      data.push({
+        date: date,
+        value: currentValue
+      });
+    }
+    
+    return data;
+  };
+  
+  // Function to calculate moving average
+  const calculateMovingAverage = (data, period) => {
+    if (!data || data.length < period) return [];
+    
+    const result = [];
+    for (let i = period - 1; i < data.length; i++) {
+      let sum = 0;
+      for (let j = 0; j < period; j++) {
+        sum += data[i - j].value;
+      }
+      result.push({
+        date: data[i].date,
+        value: sum / period
+      });
+    }
+    
+    return result;
+  };
+  
+  // Function to create plot layout for strategy thumbnails
+  const getStrategyPlotLayout = () => {
+    return {
+      autosize: true,
+      margin: { l: 30, r: 10, b: 25, t: 25, pad: 0 },
+      xaxis: {
+        showgrid: false,
+        zeroline: false,
+        showticklabels: false
+      },
+      yaxis: {
+        showgrid: false,
+        zeroline: false,
+        showticklabels: false
+      },
+      showlegend: false,
+      plot_bgcolor: theme.palette.background.paper,
+      paper_bgcolor: theme.palette.background.paper,
+      font: { color: theme.palette.text.primary },
+      hovermode: false
+    };
+  };
+
+  const handleNotificationsToggle = () => {
+    setNotificationsOpen(!notificationsOpen);
+  };
+  
+  // New handler for strategy click
+  const handleStrategyClick = (strategyId) => {
+    navigate(`/strategy/${strategyId}`);
+  };
 
   const handleNavigateToStrategy = () => {
     navigate('/strategy-builder');
@@ -175,7 +350,7 @@ const Dashboard = () => {
     switch (status) {
       case 'active':
         color = 'success';
-        icon = <CheckCircle fontSize="small" />;
+        icon = <CheckCircleIcon fontSize="small" />;
         break;
       case 'paused':
         color = 'warning';
@@ -183,7 +358,7 @@ const Dashboard = () => {
         break;
       case 'error':
         color = 'error';
-        icon = <Error fontSize="small" />;
+        icon = <ErrorIcon fontSize="small" />;
         break;
       default:
         icon = <Cancel fontSize="small" />;
@@ -204,13 +379,13 @@ const Dashboard = () => {
   const renderAlertIcon = (severity) => {
     switch (severity) {
       case 'info':
-        return <Notifications sx={{ color: theme.palette.info.main }} />;
+        return <InfoIcon sx={{ color: theme.palette.info.main }} />;
       case 'warning':
-        return <Error sx={{ color: theme.palette.warning.main }} />;
+        return <WarningIcon sx={{ color: theme.palette.warning.main }} />;
       case 'error':
-        return <Cancel sx={{ color: theme.palette.error.main }} />;
+        return <ErrorIcon sx={{ color: theme.palette.error.main }} />;
       default:
-        return <Notifications />;
+        return <NotificationsIcon />;
     }
   };
 
@@ -230,20 +405,34 @@ const Dashboard = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+    <Container  sx={{ mt: 4, mb: 4 }}>
       {/* Page Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ color: theme.palette.primary.main, fontWeight: 700 }}>
-          Dashboard
-        </Typography>
-        <Typography variant="body1" sx={{ color: theme.palette.text.secondary }}>
-          Welcome back! Here's an overview of your trading activity
-        </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+        <Box>
+          <Typography variant="body1" sx={{ color: theme.palette.text.secondary }}>
+            Welcome back! Here's an overview of your trading activity
+          </Typography>
+        </Box>
+        <IconButton
+          color="primary"
+          onClick={handleNotificationsToggle}
+          sx={{ 
+            border: `1px solid ${theme.palette.divider}`, 
+            borderRadius: '8px', 
+            p: 1,
+            bgcolor: notificationsOpen ? theme.palette.action.selected : 'transparent',
+            '&:hover': {
+              bgcolor: theme.palette.action.hover,
+            }
+          }}
+        >
+          <NotificationsIcon />
+        </IconButton>
       </Box>
 
       {/* Account Summary Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={6}>
           <Paper 
             elevation={2} 
             sx={{ 
@@ -265,7 +454,7 @@ const Dashboard = () => {
             </Typography>
           </Paper>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={6}>
           <Paper 
             elevation={2} 
             sx={{ 
@@ -303,7 +492,7 @@ const Dashboard = () => {
             </Box>
           </Paper>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={6}>
           <Paper 
             elevation={2} 
             sx={{ 
@@ -335,7 +524,7 @@ const Dashboard = () => {
             </Typography>
           </Paper>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={12} sm={6} md={6}>
           <Paper 
             elevation={2} 
             sx={{ 
@@ -357,6 +546,99 @@ const Dashboard = () => {
               Active trades
             </Typography>
           </Paper>
+        </Grid>
+      </Grid>
+
+      {/* Equity Charts Grid - Main account + strategy thumbnails */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        {/* Main Account Equity Chart - Full Width */}
+        <Grid item xs={12} md={12}>
+          <Paper sx={{ p: 2, borderRadius: 2, height: '100%' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                Account Performance
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Button 
+                  size="small" 
+                  onClick={() => navigate('/performance')}
+                  endIcon={<ZoomInIcon />}
+                >
+                  Detailed View
+                </Button>
+              </Box>
+            </Box>
+            <Box sx={{ height: 300 }}>
+              <Plot
+                data={accountPlotData}
+                layout={accountPlotLayout}
+                style={{ width: '100%', height: '100%' }}
+                useResizeHandler={true}
+                config={{ displayModeBar: false, responsive: true }}
+              />
+            </Box>
+          </Paper>
+        </Grid>
+        
+        {/* Strategy Equity Curves (1x4 Grid of 4 strategies) - Full Width, below account chart */}
+        <Grid item xs={12} md={12}>
+          <Grid container spacing={2}>
+            {strategies.slice(0, 4).map((strategy, index) => (
+              <Grid item xs={12} sm={6} md={3} key={strategy.id} sx={{ height: 150 }}>
+                <Paper 
+                  sx={{ 
+                    p: 1, 
+                    borderRadius: 2, 
+                    height: '100%', 
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    '&:hover': {
+                      boxShadow: 3,
+                    },
+                  }}
+                  onClick={() => handleStrategyClick(strategy.id)}
+                >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5, flexShrink: 0 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: '0.8rem' }} noWrap>
+                      {strategy.name}
+                    </Typography>
+                    <Typography 
+                      variant="caption" 
+                      sx={{ 
+                        fontWeight: 'bold', 
+                        color: strategy.positive ? theme.palette.success.main : theme.palette.error.main 
+                      }}
+                    >
+                      {strategy.performance}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ flexGrow: 1, height: 'calc(100% - 24px)' }}>
+                    {strategyEquityData[strategy.id] && (
+                      <Plot
+                        data={[
+                          {
+                            x: strategyEquityData[strategy.id].map(d => d.date),
+                            y: strategyEquityData[strategy.id].map(d => d.value),
+                            type: 'scatter',
+                            mode: 'lines',
+                            line: { 
+                              color: strategy.positive ? theme.palette.success.main : theme.palette.error.main, 
+                              width: 1.5 
+                            }
+                          }
+                        ]}
+                        layout={getStrategyPlotLayout()}
+                        style={{ width: '100%', height: '100%' }}
+                        useResizeHandler={true}
+                        config={{ displayModeBar: false, responsive: true, staticPlot: true }}
+                      />
+                    )}
+                  </Box>
+                </Paper>
+              </Grid>
+            ))}
+          </Grid>
         </Grid>
       </Grid>
 
@@ -394,8 +676,10 @@ const Dashboard = () => {
                       sx={{ 
                         py: 1.5, 
                         px: 2, 
-                        '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.04)' }
+                        '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.04)' },
+                        cursor: 'pointer'
                       }}
+                      onClick={() => handleStrategyClick(strategy.id)}
                     >
                       <ListItemIcon>
                         <ShowChart 
@@ -517,56 +801,71 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         </Grid>
-        
-        {/* Alerts and Notifications */}
-        <Grid item xs={12}>
-          <Card sx={{ borderRadius: 2 }}>
-            <CardHeader 
-              title="Alerts & Notifications" 
-              action={
-                <Button 
-                  color="primary"
-                  size="small"
-                >
-                  Clear All
-                </Button>
-              }
-              sx={{ 
-                pb: 1,
-                '& .MuiCardHeader-title': { 
-                  fontWeight: 600,
-                  color: theme.palette.primary.main
-                }
-              }}
-            />
-            <Divider />
-            <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
-              <List>
-                {alerts.map((alert) => (
-                  <React.Fragment key={alert.id}>
-                    <ListItem
-                      sx={{ 
-                        py: 1.5, 
-                        px: 2, 
-                        '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.04)' }
-                      }}
-                    >
-                      <ListItemIcon>
-                        {renderAlertIcon(alert.severity)}
-                      </ListItemIcon>
-                      <ListItemText 
-                        primary={alert.message}
-                        secondary={`${alert.time} ${alert.date}`}
-                      />
-                    </ListItem>
-                    <Divider component="li" />
-                  </React.Fragment>
-                ))}
-              </List>
-            </CardContent>
-          </Card>
-        </Grid>
       </Grid>
+
+      {/* Notifications Sidebar (Drawer) */}
+      <Drawer
+        anchor="right"
+        open={notificationsOpen}
+        onClose={handleNotificationsToggle}
+        PaperProps={{
+          sx: {
+            width: { xs: '90%', sm: 360, md: 400 },
+            p: 2,
+            boxSizing: 'border-box',
+            borderTopLeftRadius: theme.shape.borderRadius * 2,
+            borderBottomLeftRadius: theme.shape.borderRadius * 2,
+          }
+        }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, color: theme.palette.primary.main }}>
+            Notifications
+          </Typography>
+          <Button
+            color="primary"
+            size="small"
+            onClick={() => {
+              setAlerts([]);
+              handleNotificationsToggle();
+            }}
+          >
+            Clear All
+          </Button>
+        </Box>
+        <Divider sx={{ mb: 1 }} />
+        {alerts && alerts.length > 0 ? (
+          <List sx={{ p: 0, overflowY: 'auto' }}>
+            {alerts.map((alert) => (
+              <React.Fragment key={alert.id}>
+                <ListItem
+                  sx={{
+                    py: 1.5,
+                    px: 0.5,
+                    alignItems: 'flex-start',
+                    '&:hover': { bgcolor: theme.palette.action.hover }
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
+                    {renderAlertIcon(alert.severity)}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={alert.message}
+                    secondary={`${alert.time} • ${alert.date}`}
+                    primaryTypographyProps={{ variant: 'body2', fontWeight: 500, mb: 0.5 }}
+                    secondaryTypographyProps={{ variant: 'caption', color: 'text.secondary' }}
+                  />
+                </ListItem>
+                <Divider component="li" variant="inset" sx={{ ml: '36px' }} />
+              </React.Fragment>
+            ))}
+          </List>
+        ) : (
+          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 4 }}>
+            No new notifications.
+          </Typography>
+        )}
+      </Drawer>
     </Container>
   );
 };

@@ -18,12 +18,24 @@ import {
   Person as PersonIcon,
   ExitToApp as LogoutIcon
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../router/AuthContext';
+
+const pageTitles = {
+  '/dashboard': 'Trading Dashboard',
+  '/strategy-builder': 'Strategy Builder',
+  '/backtest': 'Backtest',
+  '/paper-trading': 'Paper Trading',
+  '/live-trading': 'Live Trading',
+  '/account': 'Account',
+  '/account/settings': 'Account Settings',
+  // Add more routes as needed
+};
 
 const DashboardNavbar = () => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, signOut } = useAuth();
   const [anchorEl, setAnchorEl] = useState(null);
   const [notificationsAnchorEl, setNotificationsAnchorEl] = useState(null);
@@ -66,6 +78,9 @@ const DashboardNavbar = () => {
     { id: 3, message: 'Account balance updated', time: 'Yesterday' }
   ];
 
+  // Determine the title based on the current path
+  const title = pageTitles[location.pathname] || 'Trading Dashboard';
+
   return (
     <AppBar 
       position="sticky" 
@@ -78,7 +93,7 @@ const DashboardNavbar = () => {
     >
       <Toolbar>
         <Typography
-          variant="h6"
+          variant="h3"
           component="div"
           sx={{
             flexGrow: 1,
@@ -86,8 +101,7 @@ const DashboardNavbar = () => {
             fontWeight: 600
           }}
         >
-          {/* Current page title - could be dynamic */}
-          Trading Dashboard
+          {title}
         </Typography>
 
         {/* Notifications */}

@@ -53,7 +53,7 @@ const AlpacaConfigForm = () => {
       ...prev,
       isPaper: newIsPaper,
       endpoint: newIsPaper 
-        ? 'https://paper-api.alpaca.markets' 
+        ? 'https://paper-api.alpaca.markets/v2' 
         : 'https://api.alpaca.markets'
     }));
   };
@@ -130,7 +130,7 @@ const AlpacaConfigForm = () => {
         setFormData({
           apiKey: '',
           apiSecret: '',
-          endpoint: 'https://paper-api.alpaca.markets',
+          endpoint: 'https://paper-api.alpaca.markets/v2',
           isPaper: true
         });
       } else {

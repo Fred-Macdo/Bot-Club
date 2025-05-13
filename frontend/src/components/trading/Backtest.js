@@ -1,103 +1,804 @@
-// src/components/account/AccountSettings.js
-import React, { useState } from 'react';
-import { 
-  Box, 
-  Typography, 
-  Paper, 
-  Tabs, 
-  Tab,
-  useTheme 
+// src/components/backtest/Backtest.js
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Typography,
+  Paper,
+  Grid,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  TextField,
+  Card,
+  CardContent,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Divider,
+  CircularProgress,
+  useTheme,
+  Chip
 } from '@mui/material';
-import AlpacaConfigForm from '../dashboard/AlpacaConfigForm';
+import {
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  ShowChart as ShowChartIcon,
+  Assessment as AssessmentIcon,
+  MonetizationOn as MonetizationOnIcon
+} from '@mui/icons-material';
+import Plot from 'react-plotly.js';
+import Sidebar from '../common/Sidebar';
+import Button from '../common/Button';
 
-const AccountSettings = () => {
+const Backtest = () => {
   const theme = useTheme();
-  const [activeTab, setActiveTab] = useState(0);
-  
-  const handleTabChange = (event, newValue) => {
-    setActiveTab(newValue);
+
+  const [selectedStrategy, setSelectedStrategy] = useState('');
+  const [initialCapital, setInitialCapital] = useState(10000);
+  const [isBacktesting, setIsBacktesting] = useState(false);
+  const [backtestComplete, setBacktestComplete] = useState(false);
+  const [backtestResults, setBacktestResults] = useState(null);
+  const [timeframe, setTimeframe] = useState('1D');
+  const [startDate, setStartDate] = useState('2024-01-01');
+  const [endDate, setEndDate] = useState('2024-05-09');
+  const [plotlyData, setPlotlyData] = useState([]);
+  const [plotlyLayout, setPlotlyLayout] = useState({});
+
+  const savedStrategies = [
+    { id: '1', name: 'EMA Crossover Strategy', description: 'Basic EMA crossover with RSI filter' },
+    { id: '2', name: 'Bollinger Bands Strategy', description: 'Bollinger Bands mean reversion' },
+    { id: '3', name: 'MACD with ATR Strategy', description: 'MACD signals with ATR position sizing' },
+    { id: '4', name: 'The Mag 7 Strategy', description: 'Trading the magnificent 7 tech stocks' },
+    { id: '5', name: 'Crypto Momentum', description: 'Momentum strategy for crypto assets' }
+  ];
+
+  const timeframeOptions = [
+    { value: '1Min', label: '1 Minute' },
+    { value: '5Min', label: '5 Minutes' },
+    { value: '15Min', label: '15 Minutes' },
+    { value: '30Min', label: '30 Minutes' },
+    { value: '1H', label: '1 Hour' },
+    { value: '1D', label: '1 Day' },
+    { value: '1W', label: '1 Week' }
+  ];
+
+  const runBacktest = () => {
+    setIsBacktesting(true);
+
+    setTimeout(() => {
+      const mockResults = generateMockBacktestResults(initialCapital, startDate, endDate);
+      setBacktestResults(mockResults);
+      setBacktestComplete(true);
+      setIsBacktesting(false);
+    }, 1500);
   };
-  
+
+  const resetBacktest = () => {
+    setBacktestComplete(false);
+    setBacktestResults(null);
+    setPlotlyData([]);
+    setPlotlyLayout({});
+  };
+
+  const generateMockBacktestResults = (initialCapital, startDate, endDate) => {
+    const startTimestamp = new Date(startDate).getTime();
+    const endTimestamp = new Date(endDate).getTime();
+    const dayDuration = 24 * 60 * 60 * 1000;
+    const numberOfDays = Math.floor((endTimestamp - startTimestamp) / dayDuration);
+
+    let equity = [{ date: new Date(startDate), value: initialCapital }];
+    let currentEquity = initialCapital;
+
+    for (let i = 1; i <= numberOfDays; i++) {
+      const currentDate = new Date(startTimestamp + i * dayDuration);
+      if (currentDate.getDay() === 0 || currentDate.getDay() === 6) {
+        continue;
+      }
+      const dailyChange = (Math.random() * 4 - 2) / 100;
+      currentEquity = currentEquity * (1 + dailyChange);
+      equity.push({
+        date: currentDate,
+        value: currentEquity
+      });
+    }
+
+    const trades = [];
+    let tradeId = 1;
+    let position = null;
+
+    for (let i = 5; i < equity.length; i += Math.floor(Math.random() * 10) + 5) {
+      if (!position) {
+        const entryPrice = equity[i].value * (1 - Math.random() * 0.01);
+        const shares = Math.floor(equity[i].value * 0.1 / entryPrice);
+        position = {
+          id: tradeId++,
+          symbol: ['AAPL', 'MSFT', 'GOOG', 'TSLA', 'NVDA'][Math.floor(Math.random() * 5)],
+          entryDate: equity[i].date,
+          entryPrice,
+          shares,
+          side: Math.random() > 0.3 ? 'long' : 'short'
+        };
+      } else {
+        const exitPrice = position.entryPrice * (1 + (Math.random() * 0.06 - 0.03) * (position.side === 'long' ? 1 : -1));
+        const pnl = (exitPrice - position.entryPrice) * position.shares * (position.side === 'long' ? 1 : -1);
+        trades.push({
+          ...position,
+          exitDate: equity[i].date,
+          exitPrice,
+          pnl,
+          returnPct: (pnl / (position.entryPrice * position.shares)) * 100
+        });
+        position = null;
+      }
+    }
+
+    if (position) {
+      const exitPrice = position.entryPrice * (1 + (Math.random() * 0.06 - 0.03) * (position.side === 'long' ? 1 : -1));
+      const pnl = (exitPrice - position.entryPrice) * position.shares * (position.side === 'long' ? 1 : -1);
+      trades.push({
+        ...position,
+        exitDate: equity[equity.length - 1].date,
+        exitPrice,
+        pnl,
+        returnPct: (pnl / (position.entryPrice * position.shares)) * 100
+      });
+    }
+
+    const finalEquity = equity[equity.length - 1].value;
+    const totalReturn = ((finalEquity - initialCapital) / initialCapital) * 100;
+
+    const winningTrades = trades.filter(t => t.pnl > 0);
+    const losingTrades = trades.filter(t => t.pnl <= 0);
+
+    const winRate = (winningTrades.length / trades.length) * 100;
+    const avgWin = winningTrades.length > 0 ? winningTrades.reduce((sum, t) => sum + t.returnPct, 0) / winningTrades.length : 0;
+    const avgLoss = losingTrades.length > 0 ? losingTrades.reduce((sum, t) => sum + t.returnPct, 0) / losingTrades.length : 0;
+
+    let maxDrawdown = 0;
+    let peak = initialCapital;
+
+    for (const point of equity) {
+      if (point.value > peak) {
+        peak = point.value;
+      }
+      const drawdown = (peak - point.value) / peak * 100;
+      if (drawdown > maxDrawdown) {
+        maxDrawdown = drawdown;
+      }
+    }
+
+    const returns = [];
+    for (let i = 1; i < equity.length; i++) {
+      returns.push((equity[i].value - equity[i - 1].value) / equity[i - 1].value);
+    }
+
+    const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+    const stdReturn = Math.sqrt(returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length);
+    const sharpeRatio = (avgReturn / stdReturn) * Math.sqrt(252);
+
+    return {
+      equity,
+      trades,
+      stats: {
+        initialCapital,
+        finalEquity,
+        totalReturn,
+        totalTrades: trades.length,
+        winningTrades: winningTrades.length,
+        losingTrades: losingTrades.length,
+        winRate,
+        avgWin,
+        avgLoss,
+        profitFactor: Math.abs(winningTrades.reduce((sum, t) => sum + t.pnl, 0) / (losingTrades.reduce((sum, t) => sum + t.pnl, 0) || 1)),
+        maxDrawdown,
+        sharpeRatio
+      }
+    };
+  };
+
+  useEffect(() => {
+    if (backtestResults) {
+      const equityData = backtestResults.equity;
+      const tradesData = backtestResults.trades;
+
+      const equityTrace = {
+        x: equityData.map(d => d.date),
+        y: equityData.map(d => d.value),
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Strategy Equity',
+        line: { color: theme.palette.primary.main, width: 2 }
+      };
+
+      const benchmarkData = equityData.map(d => ({
+        date: d.date,
+        value: initialCapital * (1 + ((d.date - equityData[0].date) / (equityData[equityData.length - 1].date - equityData[0].date)) * 0.08)
+      }));
+
+      const benchmarkTrace = {
+        x: benchmarkData.map(d => d.date),
+        y: benchmarkData.map(d => d.value),
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Benchmark (8% Ann.)',
+        line: { color: theme.palette.grey[500], width: 1, dash: 'dash' }
+      };
+
+      const entryMarkers = {
+        x: tradesData.map(t => t.entryDate),
+        y: tradesData.map(t => {
+          const equityPoint = equityData.find(e => e.date.getTime() === t.entryDate.getTime());
+          return equityPoint ? equityPoint.value : null;
+        }),
+        mode: 'markers',
+        type: 'scatter',
+        name: 'Entries',
+        marker: {
+          color: tradesData.map(t => t.side === 'long' ? theme.palette.success.light : theme.palette.error.light),
+          size: 8,
+          symbol: tradesData.map(t => t.side === 'long' ? 'triangle-up' : 'triangle-down'),
+          line: {
+            color: tradesData.map(t => t.side === 'long' ? theme.palette.success.main : theme.palette.error.main),
+            width: 1
+          }
+        },
+        hoverinfo: 'text',
+        text: tradesData.map(t => `Entry: ${t.side.toUpperCase()} ${t.symbol}<br>Price: $${t.entryPrice.toFixed(2)}<br>Shares: ${t.shares}<br>Date: ${t.entryDate.toLocaleDateString()}`)
+      };
+
+      const exitMarkers = {
+        x: tradesData.map(t => t.exitDate),
+        y: tradesData.map(t => {
+          const equityPoint = equityData.find(e => e.date.getTime() === t.exitDate.getTime());
+          return equityPoint ? equityPoint.value : null;
+        }),
+        mode: 'markers',
+        type: 'scatter',
+        name: 'Exits',
+        marker: {
+          color: tradesData.map(t => t.pnl > 0 ? theme.palette.success.main : theme.palette.error.main),
+          size: 8,
+          symbol: tradesData.map(t => t.side === 'long' ? 'triangle-down-open' : 'triangle-up-open'),
+          line: {
+            color: tradesData.map(t => t.pnl > 0 ? theme.palette.success.dark : theme.palette.error.dark),
+            width: 1
+          }
+        },
+        hoverinfo: 'text',
+        text: tradesData.map(t => `Exit: ${t.side === 'long' ? 'SELL' : 'COVER'} ${t.symbol}<br>Price: $${t.exitPrice.toFixed(2)}<br>P&L: $${t.pnl.toFixed(2)} (${t.returnPct.toFixed(2)}%)<br>Date: ${t.exitDate.toLocaleDateString()}`)
+      };
+
+      setPlotlyData([equityTrace, benchmarkTrace, entryMarkers, exitMarkers]);
+
+      setPlotlyLayout({
+        autosize: true,
+        margin: { l: 70, r: 30, b: 50, t: 50, pad: 4 },
+        xaxis: {
+          title: 'Date',
+          gridcolor: theme.palette.divider,
+          linecolor: theme.palette.text.secondary,
+          tickfont: { color: theme.palette.text.secondary }
+        },
+        yaxis: {
+          title: 'Equity ($)',
+          gridcolor: theme.palette.divider,
+          linecolor: theme.palette.text.secondary,
+          tickfont: { color: theme.palette.text.secondary }
+        },
+        legend: {
+          orientation: 'h',
+          yanchor: 'bottom',
+          y: 1.02,
+          xanchor: 'right',
+          x: 1,
+          font: { color: theme.palette.text.secondary }
+        },
+        plot_bgcolor: theme.palette.background.paper,
+        paper_bgcolor: theme.palette.background.paper,
+        font: { color: theme.palette.text.primary },
+        hovermode: 'closest'
+      });
+    }
+  }, [backtestResults, theme.palette, initialCapital]);
+
   return (
-    <Box>
-      <Typography variant="h4" component="h1" gutterBottom sx={{ color: theme.palette.primary.main, fontWeight: 700 }}>
-        Account Settings
-      </Typography>
-      
-      <Paper elevation={1} sx={{ borderRadius: 2 }}>
-        <Tabs 
-          value={activeTab} 
-          onChange={handleTabChange}
-          sx={{ 
-            borderBottom: 1, 
-            borderColor: 'divider',
-            bgcolor: theme.palette.primary.main,
-            borderRadius: '8px 8px 0 0',
-            '& .MuiTab-root': { color: theme.palette.secondary.main },
-            '& .Mui-selected': { color: theme.palette.accent.main }
-          }}
-          TabIndicatorProps={{
-            style: { backgroundColor: theme.palette.accent.main }
-          }}
-        >
-          <Tab label="Alpaca API" />
-          <Tab label="Profile" />
-          <Tab label="Security" />
-          <Tab label="Notification Preferences" />
-        </Tabs>
-        
-        <Box sx={{ p: 3 }}>
-          {activeTab === 0 && (
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                Alpaca API Configuration
-              </Typography>
-              <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-                Configure your Alpaca trading account API credentials. These credentials are used to connect to the Alpaca API for paper trading and live trading.
-              </Typography>
-              <AlpacaConfigForm />
-            </Box>
-          )}
-          
-          {activeTab === 1 && (
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                Profile Settings
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
-                Update your profile information and preferences.
-              </Typography>
-              {/* Profile settings form would go here */}
-            </Box>
-          )}
-          
-          {activeTab === 2 && (
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                Security Settings
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
-                Update your password and security preferences.
-              </Typography>
-              {/* Security settings form would go here */}
-            </Box>
-          )}
-          
-          {activeTab === 3 && (
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                Notification Preferences
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
-                Configure how and when you receive notifications.
-              </Typography>
-              {/* Notification preferences form would go here */}
-            </Box>
-          )}
-        </Box>
-      </Paper>
+    <Box sx={{ display: 'flex' }}>
+      <Sidebar />
+      <Box sx={{ flexGrow: 1, height: '100vh', overflow: 'auto', p: 3 }}>
+        {!backtestComplete ? (
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6} lg={4}>
+              <Paper sx={{ p: 3, borderRadius: 2 }}>
+                <Typography variant="h6" gutterBottom>
+                  Backtest Configuration
+                </Typography>
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Select Strategy</InputLabel>
+                  <Select
+                    value={selectedStrategy}
+                    onChange={(e) => setSelectedStrategy(e.target.value)}
+                    label="Select Strategy"
+                  >
+                    {savedStrategies.map((strategy) => (
+                      <MenuItem key={strategy.id} value={strategy.id}>
+                        {strategy.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                {selectedStrategy && (
+                  <Box sx={{ mt: 2, mb: 3 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      {savedStrategies.find(s => s.id === selectedStrategy)?.description}
+                    </Typography>
+                  </Box>
+                )}
+                <Divider sx={{ my: 2 }} />
+                <Typography variant="subtitle1" gutterBottom>
+                  Backtest Settings
+                </Typography>
+                <TextField
+                  fullWidth
+                  label="Initial Capital"
+                  type="number"
+                  value={initialCapital}
+                  onChange={(e) => setInitialCapital(parseFloat(e.target.value))}
+                  InputProps={{
+                    startAdornment: <Typography sx={{ mr: 1 }}>$</Typography>,
+                    inputProps: { min: 1000 }
+                  }}
+                  margin="normal"
+                />
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Timeframe</InputLabel>
+                  <Select
+                    value={timeframe}
+                    onChange={(e) => setTimeframe(e.target.value)}
+                    label="Timeframe"
+                  >
+                    {timeframeOptions.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <Grid container spacing={2} sx={{ mt: 1 }}>
+                  <Grid item xs={6}>
+                    <TextField
+                      fullWidth
+                      label="Start Date"
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+                  <Grid item xs={6}>
+                    <TextField
+                      fullWidth
+                      label="End Date"
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+                </Grid>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  fullWidth
+                  sx={{ mt: 3 }}
+                  onClick={runBacktest}
+                  disabled={!selectedStrategy || isBacktesting}
+                >
+                  {isBacktesting ? (
+                    <>
+                      <CircularProgress size={24} sx={{ mr: 1, color: 'white' }} />
+                      Running Backtest...
+                    </>
+                  ) : (
+                    'Run Backtest'
+                  )}
+                </Button>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} md={6} lg={8}>
+              <Paper sx={{ p: 3, borderRadius: 2, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Box sx={{ textAlign: 'center' }}>
+                  <ShowChartIcon sx={{ fontSize: 80, color: theme.palette.primary.light, mb: 2 }} />
+                  <Typography variant="h6" gutterBottom>
+                    Configure and run a backtest
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 500, mx: 'auto' }}>
+                    Select a strategy, set the initial capital, timeframe, and date range, then run the backtest to see performance metrics and trade analysis.
+                  </Typography>
+                </Box>
+              </Paper>
+            </Grid>
+          </Grid>
+        ) : (
+          <>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={8}>
+                <Paper sx={{ p: 3, borderRadius: 2, mb: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Equity Curve
+                  </Typography>
+                  <Box sx={{ width: '100%', height: 400 }}>
+                    <Plot
+                      data={plotlyData}
+                      layout={plotlyLayout}
+                      style={{ width: '100%', height: '100%' }}
+                      useResizeHandler={true}
+                      config={{ responsive: true, displaylogo: false }}
+                    />
+                  </Box>
+                </Paper>
+                <Paper sx={{ p: 3, borderRadius: 2, mb: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Performance Analytics
+                  </Typography>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                      Trade Statistics
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Typography variant="body2">Total Trades:</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          {backtestResults.stats.totalTrades}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2">Winning Trades:</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: theme.palette.success.main }}>
+                          {backtestResults.stats.winningTrades} ({backtestResults.stats.winRate.toFixed(1)}%)
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2">Losing Trades:</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: theme.palette.error.main }}>
+                          {backtestResults.stats.losingTrades} ({(100 - backtestResults.stats.winRate).toFixed(1)}%)
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2">Avg. Win:</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: theme.palette.success.main }}>
+                          {backtestResults.stats.avgWin.toFixed(2)}%
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2">Avg. Loss:</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: theme.palette.error.main }}>
+                          {backtestResults.stats.avgLoss.toFixed(2)}%
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                </Paper>
+                <Paper sx={{ p: 3, borderRadius: 2 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Trade History
+                  </Typography>
+                  <TableContainer sx={{ maxHeight: 400 }}>
+                    <Table stickyHeader size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Symbol</TableCell>
+                          <TableCell>Side</TableCell>
+                          <TableCell>Entry Date</TableCell>
+                          <TableCell>Entry Price</TableCell>
+                          <TableCell>Exit Date</TableCell>
+                          <TableCell>Exit Price</TableCell>
+                          <TableCell>Shares</TableCell>
+                          <TableCell>P&L ($)</TableCell>
+                          <TableCell>Return (%)</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {backtestResults.trades.map((trade) => (
+                          <TableRow
+                            key={trade.id}
+                            sx={{
+                              '&:nth-of-type(odd)': { bgcolor: theme.palette.action.hover },
+                              bgcolor: trade.pnl > 0 ? 'rgba(46, 125, 50, 0.04)' : 'rgba(211, 47, 47, 0.04)'
+                            }}
+                          >
+                            <TableCell>
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                <Chip
+                                  label={trade.symbol}
+                                  size="small"
+                                  sx={{
+                                    bgcolor: theme.palette.primary.main,
+                                    color: 'white',
+                                    fontSize: '0.75rem',
+                                    height: 20
+                                  }}
+                                />
+                              </Box>
+                            </TableCell>
+                            <TableCell>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  color: trade.side === 'long' ? theme.palette.success.main : theme.palette.error.main,
+                                  fontWeight: 'bold'
+                                }}
+                              >
+                                {trade.side.toUpperCase()}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>{trade.entryDate.toLocaleDateString()}</TableCell>
+                            <TableCell>${trade.entryPrice.toFixed(2)}</TableCell>
+                            <TableCell>{trade.exitDate.toLocaleDateString()}</TableCell>
+                            <TableCell>${trade.exitPrice.toFixed(2)}</TableCell>
+                            <TableCell>{trade.shares}</TableCell>
+                            <TableCell>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  color: trade.pnl > 0 ? theme.palette.success.main : theme.palette.error.main,
+                                  fontWeight: 'bold'
+                                }}
+                              >
+                                {trade.pnl > 0 ? '+' : ''}${trade.pnl.toFixed(2)}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  color: trade.returnPct > 0 ? theme.palette.success.main : theme.palette.error.main,
+                                  fontWeight: 'bold'
+                                }}
+                              >
+                                {trade.returnPct > 0 ? '+' : ''}{trade.returnPct.toFixed(2)}%
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Grid container spacing={2} sx={{ mb: 3 }}>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Card>
+                      <CardContent sx={{ p: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <MonetizationOnIcon sx={{ color: theme.palette.primary.main, mr: 1 }} />
+                          <Typography variant="subtitle2">Total Return</Typography>
+                        </Box>
+                        <Typography variant="h5" sx={{ fontWeight: 'bold', color: backtestResults.stats.totalReturn >= 0 ? theme.palette.success.main : theme.palette.error.main }}>
+                          {backtestResults.stats.totalReturn >= 0 ? '+' : ''}{backtestResults.stats.totalReturn.toFixed(2)}%
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          ${backtestResults.stats.initialCapital.toFixed(2)} → ${backtestResults.stats.finalEquity.toFixed(2)}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Card>
+                      <CardContent sx={{ p: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <TrendingUpIcon sx={{ color: theme.palette.primary.main, mr: 1 }} />
+                          <Typography variant="subtitle2">Win Rate</Typography>
+                        </Box>
+                        <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                          {backtestResults.stats.winRate.toFixed(2)}%
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {backtestResults.stats.winningTrades} / {backtestResults.stats.totalTrades} trades
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Card>
+                      <CardContent sx={{ p: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <TrendingDownIcon sx={{ color: theme.palette.primary.main, mr: 1 }} />
+                          <Typography variant="subtitle2">Max Drawdown</Typography>
+                        </Box>
+                        <Typography variant="h5" sx={{ fontWeight: 'bold', color: theme.palette.error.main }}>
+                          -{backtestResults.stats.maxDrawdown.toFixed(2)}%
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Profit Factor: {backtestResults.stats.profitFactor.toFixed(2)}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Card>
+                      <CardContent sx={{ p: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <AssessmentIcon sx={{ color: theme.palette.primary.main, mr: 1 }} />
+                          <Typography variant="subtitle2">Sharpe Ratio</Typography>
+                        </Box>
+                        <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                          {backtestResults.stats.sharpeRatio.toFixed(2)}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Avg Win: {backtestResults.stats.avgWin.toFixed(2)}% | Avg Loss: {backtestResults.stats.avgLoss.toFixed(2)}%
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+                <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                  <Paper sx={{ p: 2, borderRadius: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                    <Box>
+                      <Typography variant="h6">
+                        {savedStrategies.find(s => s.id === selectedStrategy)?.name} - Backtest Results
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {startDate} to {endDate} ({timeframe})
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Button
+                        variant="outlined"
+                        color="primary"
+                        onClick={resetBacktest}
+                        sx={{ mr: 2 }}
+                      >
+                        New Backtest
+                      </Button>
+                      <Button
+                        variant="contained"
+                        color="accent"
+                      >
+                        Save Results
+                      </Button>
+                    </Box>
+                  </Paper>
+                  <Paper sx={{ p: 3, borderRadius: 2, mb: 3 }}>
+                    <Typography variant="h6" sx={{ mb: 2 }}>
+                      Strategy Summary
+                    </Typography>
+                    <Box sx={{
+                      p: 2,
+                      borderRadius: 1,
+                      bgcolor: backtestResults.stats.totalReturn >= 0 ? 'rgba(46, 125, 50, 0.1)' : 'rgba(211, 47, 47, 0.1)',
+                      border: 1,
+                      borderColor: backtestResults.stats.totalReturn >= 0 ? 'rgba(46, 125, 50, 0.3)' : 'rgba(211, 47, 47, 0.3)'
+                    }}>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Initial Capital:</strong> ${backtestResults.stats.initialCapital.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Final Equity:</strong> ${backtestResults.stats.finalEquity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Absolute Return:</strong> ${(backtestResults.stats.finalEquity - backtestResults.stats.initialCapital).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        <strong>Total Return:</strong> {backtestResults.stats.totalReturn >= 0 ? '+' : ''}{backtestResults.stats.totalReturn.toFixed(2)}%
+                      </Typography>
+                    </Box>
+                  </Paper>
+                  <Paper sx={{ p: 3, borderRadius: 2, mb: 3 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
+                      Risk Metrics
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Typography variant="body2">Max Drawdown:</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: theme.palette.error.main }}>
+                          {backtestResults.stats.maxDrawdown.toFixed(2)}%
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2">Sharpe Ratio:</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          {backtestResults.stats.sharpeRatio.toFixed(2)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2">Profit Factor:</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          {backtestResults.stats.profitFactor.toFixed(2)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2">Win Rate:</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          {backtestResults.stats.winRate.toFixed(1)}%
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+                  <Paper sx={{ p: 3, borderRadius: 2, flexGrow: 1 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
+                      Recent Trades
+                    </Typography>
+                    <TableContainer sx={{ maxHeight: 300 }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Symbol</TableCell>
+                            <TableCell>Side</TableCell>
+                            <TableCell>P&L</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {backtestResults.trades.slice(-5).reverse().map((trade) => (
+                            <TableRow
+                              key={trade.id}
+                              sx={{
+                                bgcolor: trade.pnl > 0 ? 'rgba(46, 125, 50, 0.04)' : 'rgba(211, 47, 47, 0.04)'
+                              }}
+                            >
+                              <TableCell>
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                  {trade.symbol}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    color: trade.side === 'long' ? theme.palette.success.main : theme.palette.error.main,
+                                    fontWeight: 'bold'
+                                  }}
+                                >
+                                  {trade.side.toUpperCase()}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    color: trade.pnl > 0 ? theme.palette.success.main : theme.palette.error.main,
+                                    fontWeight: 'bold'
+                                  }}
+                                >
+                                  {trade.pnl > 0 ? '+' : ''}${trade.pnl.toFixed(2)}
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Paper>
+                </Box>
+              </Grid>
+            </Grid>
+          </>
+        )}
+      </Box>
     </Box>
   );
 };
 
-export default AccountSettings;
+export default Backtest;
