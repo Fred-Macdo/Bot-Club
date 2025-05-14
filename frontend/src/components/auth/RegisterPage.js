@@ -30,6 +30,7 @@ const RegisterPage = () => {
   // User data state
   const [userData, setUserData] = useState({
     // Account credentials
+    userName: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -38,6 +39,11 @@ const RegisterPage = () => {
     firstName: '',
     lastName: '',
     phone: '',
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    state: '',
+    zipCode: '',
     timezone: 'America/New_York',
     bio: '',
     profileImage: null
@@ -57,6 +63,69 @@ const RegisterPage = () => {
     { value: 'Europe/London', label: 'Greenwich Mean Time (GMT)' },
     { value: 'Europe/Paris', label: 'Central European Time (CET)' },
     { value: 'Asia/Tokyo', label: 'Japan Standard Time (JST)' }
+  ];
+
+  // States options
+  const states = [
+    { "name": "Alabama", "abbreviation": "AL" },
+    { "name": "Alaska", "abbreviation": "AK" },
+    { "name": "American Samoa", "abbreviation": "AS" },
+    { "name": "Arizona", "abbreviation": "AZ" },
+    { "name": "Arkansas", "abbreviation": "AR" },
+    { "name": "California", "abbreviation": "CA" },
+    { "name": "Colorado", "abbreviation": "CO" },
+    { "name": "Connecticut", "abbreviation": "CT" },
+    { "name": "Delaware", "abbreviation": "DE" },
+    { "name": "District Of Columbia", "abbreviation": "DC" },
+    { "name": "Federated States Of Micronesia", "abbreviation": "FM" },
+    { "name": "Florida", "abbreviation": "FL" },
+    { "name": "Georgia", "abbreviation": "GA" },
+    { "name": "Guam", "abbreviation": "GU" },
+    { "name": "Hawaii", "abbreviation": "HI" },
+    { "name": "Idaho", "abbreviation": "ID" },
+    { "name": "Illinois", "abbreviation": "IL" },
+    { "name": "Indiana", "abbreviation": "IN" },
+    { "name": "Iowa", "abbreviation": "IA" },
+    { "name": "Kansas", "abbreviation": "KS" },
+    { "name": "Kentucky", "abbreviation": "KY" },
+    { "name": "Louisiana", "abbreviation": "LA" },
+    { "name": "Maine", "abbreviation": "ME" },
+    { "name": "Marshall Islands", "abbreviation": "MH" },
+    { "name": "Maryland", "abbreviation": "MD" },
+    { "name": "Massachusetts", "abbreviation": "MA" },
+    { "name": "Michigan", "abbreviation": "MI" },
+    { "name": "Minnesota", "abbreviation": "MN" },
+    { "name": "Mississippi", "abbreviation": "MS" },
+    { "name": "Missouri", "abbreviation": "MO" },
+    { "name": "Montana", "abbreviation": "MT" },
+    { "name": "Nebraska", "abbreviation": "NE" },
+    { "name": "Nevada", "abbreviation": "NV" },
+    { "name": "New Hampshire", "abbreviation": "NH" },
+    { "name": "New Jersey", "abbreviation": "NJ" },
+    { "name": "New Mexico", "abbreviation": "NM" },
+    { "name": "New York", "abbreviation": "NY" },
+    { "name": "North Carolina", "abbreviation": "NC" },
+    { "name": "North Dakota", "abbreviation": "ND" },
+    { "name": "Northern Mariana Islands", "abbreviation": "MP" },
+    { "name": "Ohio", "abbreviation": "OH" },
+    { "name": "Oklahoma", "abbreviation": "OK" },
+    { "name": "Oregon", "abbreviation": "OR" },
+    { "name": "Palau", "abbreviation": "PW" },
+    { "name": "Pennsylvania", "abbreviation": "PA" },
+    { "name": "Puerto Rico", "abbreviation": "PR" },
+    { "name": "Rhode Island", "abbreviation": "RI" },
+    { "name": "South Carolina", "abbreviation": "SC" },
+    { "name": "South Dakota", "abbreviation": "SD" },
+    { "name": "Tennessee", "abbreviation": "TN" },
+    { "name": "Texas", "abbreviation": "TX" },
+    { "name": "Utah", "abbreviation": "UT" },
+    { "name": "Vermont", "abbreviation": "VT" },
+    { "name": "Virgin Islands", "abbreviation": "VI" },
+    { "name": "Virginia", "abbreviation": "VA" },
+    { "name": "Washington", "abbreviation": "WA" },
+    { "name": "West Virginia", "abbreviation": "WV" },
+    { "name": "Wisconsin", "abbreviation": "WI" },
+    { "name": "Wyoming", "abbreviation": "WY" }
   ];
   
   const handleChange = (e) => {
@@ -140,12 +209,20 @@ const RegisterPage = () => {
     try {
       // Format user data for MongoDB
       const userDataToSave = {
+        userName: userData.userName, // Use email prefix as username
         email: userData.email,
         password: userData.password,
         profile: {
           firstName: userData.firstName,
           lastName: userData.lastName,
           phone: userData.phone || null,
+          address: {
+            line1: userData.addressLine1 || null,
+            line2: userData.addressLine2 || null,
+            city: userData.city || null,
+            state: userData.state || null,
+            zipCode: userData.zipCode || null,
+          },
           timezone: userData.timezone,
           bio: userData.bio || null,
           profileImage: userData.profileImage
@@ -246,6 +323,29 @@ const RegisterPage = () => {
             Account Credentials
           </Typography>
           <Divider sx={{ bgcolor: 'rgba(212, 200, 146, 0.2)', mb: 2 }} />
+          
+          <Typography sx={{ color: '#d4c892', mb: 1 }}>Username *</Typography>
+          <TextField
+            fullWidth
+            id="userName"
+            name="userName"
+            value={userData.userName}
+            onChange={handleChange}
+            disabled={loading}
+            error={!!errors.userName}
+            helperText={errors.userName}
+            variant="outlined"
+            InputProps={{
+              sx: {
+                backgroundColor: '#f5edd8',
+                color: '#07372a',
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'transparent',
+                },
+              }
+            }}
+            sx={{ mb: 2 }}
+          />
           
           <Typography sx={{ color: '#d4c892', mb: 1 }}>Email Address *</Typography>
           <TextField
@@ -386,6 +486,133 @@ const RegisterPage = () => {
               />
             </Grid>
           </Grid>
+
+          {/* Address Fields Start */}
+          <Typography sx={{ color: '#d4c892', mb: 1, mt: 3 }}>Address Line 1</Typography>
+          <TextField
+            fullWidth
+            id="addressLine1"
+            name="addressLine1"
+            value={userData.addressLine1}
+            onChange={handleChange}
+            disabled={loading}
+            error={!!errors.addressLine1}
+            helperText={errors.addressLine1}
+            variant="outlined"
+            InputProps={{
+              sx: {
+                backgroundColor: '#f5edd8',
+                color: '#07372a',
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'transparent',
+                },
+              }
+            }}
+            sx={{ mb: 2 }}
+          />
+
+          <Typography sx={{ color: '#d4c892', mb: 1, mt: 1 }}>Address Line 2</Typography>
+          <TextField
+            fullWidth
+            id="addressLine2"
+            name="addressLine2"
+            value={userData.addressLine2}
+            onChange={handleChange}
+            disabled={loading}
+            error={!!errors.addressLine2}
+            helperText={errors.addressLine2 || "Optional"}
+            variant="outlined"
+            InputProps={{
+              sx: {
+                backgroundColor: '#f5edd8',
+                color: '#07372a',
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'transparent',
+                },
+              }
+            }}
+            sx={{ mb: 2 }}
+          />
+
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <Typography sx={{ color: '#d4c892', mb: 1, mt: 1 }}>City</Typography>
+              <TextField
+                fullWidth
+                id="city"
+                name="city"
+                value={userData.city}
+                onChange={handleChange}
+                disabled={loading}
+                error={!!errors.city}
+                helperText={errors.city}
+                variant="outlined"
+                InputProps={{
+                  sx: {
+                    backgroundColor: '#f5edd8',
+                    color: '#07372a',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'transparent',
+                    },
+                  }
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <Typography sx={{ color: '#d4c892', mb: 1, mt: 1 }}>State</Typography>
+              <TextField
+                fullWidth
+                select
+                id="state"
+                name="state"
+                value={userData.state}
+                onChange={handleChange}
+                disabled={loading}
+                error={!!errors.state}
+                helperText={errors.state}
+                variant="outlined"
+                InputProps={{
+                  sx: {
+                    backgroundColor: '#f5edd8',
+                    color: '#07372a',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'transparent',
+                    },
+                  }
+                }}
+              >
+                {states.map((option) => (
+                  <MenuItem key={option.abbreviation} value={option.abbreviation}>
+                    {option.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+          </Grid>
+          
+          <Typography sx={{ color: '#d4c892', mb: 1, mt: 3 }}>ZIP Code</Typography>
+          <TextField
+            fullWidth
+            id="zipCode"
+            name="zipCode"
+            value={userData.zipCode}
+            onChange={handleChange}
+            disabled={loading}
+            error={!!errors.zipCode}
+            helperText={errors.zipCode}
+            variant="outlined"
+            InputProps={{
+              sx: {
+                backgroundColor: '#f5edd8',
+                color: '#07372a',
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'transparent',
+                },
+              }
+            }}
+            sx={{ mb: 3 }}
+          />
+          {/* Address Fields End */}
           
           <Typography sx={{ color: '#d4c892', mb: 1, mt: 3 }}>Phone Number</Typography>
           <TextField
@@ -396,7 +623,7 @@ const RegisterPage = () => {
             onChange={handleChange}
             disabled={loading}
             error={!!errors.phone}
-            helperText={errors.phone || "Optional"}
+            helperText={errors.phone}
             variant="outlined"
             InputProps={{
               sx: {
@@ -408,82 +635,33 @@ const RegisterPage = () => {
               }
             }}
             sx={{ mb: 3 }}
-          />
-          
-          <Typography sx={{ color: '#d4c892', mb: 1 }}>Timezone</Typography>
-          <TextField
-            fullWidth
-            select
-            id="timezone"
-            name="timezone"
-            value={userData.timezone}
-            onChange={handleChange}
-            disabled={loading}
-            variant="outlined"
-            InputProps={{
-              sx: {
-                backgroundColor: '#f5edd8',
-                color: '#07372a',
-                '& .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'transparent',
-                },
-              }
-            }}
-            sx={{ mb: 3 }}
-          >
-            {timezones.map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </TextField>
-          
-          <Typography sx={{ color: '#d4c892', mb: 1 }}>Bio</Typography>
-          <TextField
-            fullWidth
-            multiline
-            rows={3}
-            id="bio"
-            name="bio"
-            value={userData.bio}
-            onChange={handleChange}
-            disabled={loading}
-            variant="outlined"
-            placeholder="Tell us a little about yourself..."
-            InputProps={{
-              sx: {
-                backgroundColor: '#f5edd8',
-                color: '#07372a',
-                '& .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'transparent',
-                },
-              }
-            }}
-            sx={{ mb: 4 }}
           />
           
           <Button
             type="submit"
             fullWidth
             variant="contained"
-            disabled={loading}
             sx={{
-              py: 1.5,
-              backgroundColor: '#d4c892',
-              color: '#07372a',
-              fontWeight: 700,
-              '&:hover': { backgroundColor: '#bfae6a' },
-              textTransform: 'uppercase'
+              mt: 3,
+              mb: 2,
+              bgcolor: '#d4c892',
+              color: '#113c35',
+              '&:hover': {
+                bgcolor: '#bfae6a'
+              }
             }}
+            disabled={loading}
           >
-            {loading ? <CircularProgress size={24} /> : 'REGISTER'}
+            {loading ? <CircularProgress size={24} sx={{ color: '#113c35' }} /> : 'Sign Up'}
           </Button>
           
-          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
-            <Link component={RouterLink} to="/login" variant="body2" sx={{ color: '#d4c892' }}>
-              {"Already have an account? Login"}
-            </Link>
-          </Box>
+          <Grid container justifyContent="flex-end">
+            <Grid item>
+              <Link component={RouterLink} to="/login" variant="body2" sx={{ color: '#d4c892' }}>
+                Already have an account? Sign in
+              </Link>
+            </Grid>
+          </Grid>
         </Box>
       </Paper>
     </Container>

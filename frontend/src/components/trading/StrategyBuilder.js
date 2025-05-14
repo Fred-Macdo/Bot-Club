@@ -490,7 +490,7 @@ const StrategyBuilderPage = () => {
                     bgcolor: theme.palette.primary.main,
                     borderRadius: '8px 8px 0 0',
                     '& .MuiTab-root': { color: theme.palette.secondary.main },
-                    '& .Mui-selected': { color: theme.palette.accent.main }
+                    '& .Mui-selected': { color: 'rgba(255, 255, 255, 0.7)' }
                   }}
                   TabIndicatorProps={{
                     style: { backgroundColor: theme.palette.secondary.main }

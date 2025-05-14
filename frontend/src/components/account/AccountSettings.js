@@ -33,11 +33,12 @@ const AccountSettings = () => {
             bgcolor: theme.palette.primary.main,
             borderRadius: '8px 8px 0 0',
             '& .MuiTab-root': { color: theme.palette.secondary.main },
-            '& .Mui-selected': { color: '#B8DABB' }
+            '& .Mui-selected': { color: 'rgba(255, 255, 255, 0.7)' }
+                  
           }}
           TabIndicatorProps={{
             style: {
-              backgroundColor: '#FFD700', // Change indicator color
+              backgroundColor: theme.palette.secondary.main, // Change indicator color
               height: 4,
               borderRadius: 2,
             }
@@ -59,7 +60,7 @@ const AccountSettings = () => {
           {activeTab === 1 && (
             <Box>
               <Typography variant="h6" gutterBottom>
-                Alpaca API Configuration
+                API Configuration Tab
               </Typography>
               <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
                 Configure your Alpaca trading account API credentials. These credentials are used to connect to the Alpaca API for paper trading and live trading.
