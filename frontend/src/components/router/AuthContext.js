@@ -52,13 +52,45 @@ export function AuthProvider({ children }) {
       return { error };
     }
   };
+  // Sign up function
+  const signUp = async (userData) => {
+    try {
+      console.log('Sending registration data:', userData);
+      const response = await fetch('http://localhost:8000/api/users/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        return { 
+          error: { 
+            message: data.detail || 'Registration failed. Please try again.' 
+          } 
+        };
+      }
+      
+      return { data };
+    } catch (error) {
+      console.error('Registration error:', error);
+      return { 
+        error: { 
+          message: 'Network or server error. Please try again later.' 
+        } 
+      };
+    }
+  };
 
   // Auth value to be provided throughout the app
   const value = {
     user,
     session,
     loading,
-    signUp: (data) => supabase.auth.signUp(data),
+    signUp,
     signIn: (data) => supabase.auth.signInWithPassword(data),
     signOut,
     isAuthenticated: !!user

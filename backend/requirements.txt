@@ -1,0 +1,11 @@
+FastAPI
+pymongo
+uvicorn
+python-dotenv
+passlib
+bcrypt
+python-multipart
+python-jose
+email-validator
+PyJWT
+python-jose[cryptography]

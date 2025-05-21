@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { useAuth } from '../router/AuthContext';
+import { supabase } from '../../lib/supabase'; // Added import for supabase client
 import {
   Box,
   Button,
@@ -207,41 +208,98 @@ const RegisterPage = () => {
     setLoading(true);
     
     try {
-      // Format user data for MongoDB
-      const userDataToSave = {
-        userName: userData.userName, // Use email prefix as username
+      // Step 1: Sign up with Supabase
+      const fullName = `${userData.firstName} ${userData.lastName}`.trim(); // Construct full_name
+
+      const { data: supabaseData, error: supabaseError } = await supabase.auth.signUp({
         email: userData.email,
         password: userData.password,
-        profile: {
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          phone: userData.phone || null,
-          address: {
-            line1: userData.addressLine1 || null,
-            line2: userData.addressLine2 || null,
-            city: userData.city || null,
-            state: userData.state || null,
-            zipCode: userData.zipCode || null,
-          },
-          timezone: userData.timezone,
-          bio: userData.bio || null,
-          profileImage: userData.profileImage
-        },
-        createdAt: new Date()
+        options: {
+          data: { 
+            username: userData.userName, // Pass username
+            full_name: fullName         // Pass full_name
+            // avatar_url will not be passed here as it's removed from Supabase profiles
+          }
+        }
+      });
+
+      if (supabaseError) {
+        setFormError(`Registration failed: ${supabaseError.message}`);
+        setLoading(false);
+        return;
+      }
+
+      if (!supabaseData.user) {
+        // This case should ideally be covered by supabaseError, but as a safeguard:
+        setFormError('Registration did not return a user. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      const supabaseId = supabaseData.user.id;
+
+      // Step 2: Prepare data for your backend, including the supabaseId
+      const profileData = {
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        phoneNumber: userData.phone || null, // Matches UserProfile.phoneNumber
+        bio: userData.bio || null,          // Matches UserProfile.bio
+        avatarBase64: userData.profileImage || null, // Send base64 image string
+        address: null,
+      };
+
+      if (userData.addressLine1) {
+        profileData.address = {
+          street: userData.addressLine1,        // Matches Address.street
+          // If userData.addressLine2 exists, you might append it to street:
+          street: userData.addressLine2 ? `${userData.addressLine1}, ${userData.addressLine2}` : userData.addressLine1,
+          city: userData.city || null,          // Matches Address.city
+          state: userData.state || null,        // Matches Address.state
+          postalCode: userData.zipCode || null, // Matches Address.postalCode
+          // country: userData.country || null, // Add if you have a country field in form
+        };
+      }
+
+      const userDataToSave = {
+        userName: userData.userName,
+        email: userData.email,
+        password: userData.password, // Backend expects password for its own hashing
+        supabaseId: supabaseId,      // Pass the Supabase User ID
+        profile: profileData,
       };
       
-      // Call signUp with the complete user data
-      const { error } = await signUp(userDataToSave);
+      // Call your backend signUp function (from AuthContext)
+      const { error: backendError } = await signUp(userDataToSave);
       
-      if (error) {
-        setFormError(error.message);
+      if (backendError) {
+        // Handle case where Supabase user was created, but backend registration failed
+        // For now, just show an error. More advanced handling could involve trying to clean up the Supabase user.
+        setFormError(`Profile creation failed: ${backendError.message}. Your account was created with our authentication provider, but profile setup failed. Please contact support.`);
+        // Potentially log supabaseId here for manual cleanup if needed
+        console.error('Backend registration failed after Supabase success. Supabase User ID:', supabaseId);
+        setLoading(false);
+        return;
+      }
+      
+      // Both Supabase and backend registration successful
+      if (supabaseData.user && !supabaseData.session && supabaseData.user.identities && supabaseData.user.identities.length > 0) {
+        // User created in Supabase, but email confirmation might be pending
+        alert('Registration successful! Please check your email to confirm your account before logging in.');
+        navigate('/login'); // Or to a page that says "check your email"
+      } else if (supabaseData.session) {
+        // User is created and session is active (e.g., auto-confirm enabled in Supabase)
+        alert('Registration successful! You are now logged in.');
+        navigate('/dashboard'); // Or wherever logged-in users should go
       } else {
-        // Registration successful, redirect to login
+        // Fallback, should ideally be covered by above conditions
+        alert('Registration successful! You can now try to log in.');
         navigate('/login');
       }
+
     } catch (error) {
-      setFormError('An error occurred during registration. Please try again.');
-      console.error('Registration error:', error);
+      // Catch-all for unexpected errors during the process
+      console.error('Unexpected registration error:', error);
+      setFormError('An unexpected error occurred during registration. Please try again.');
     } finally {
       setLoading(false);
     }

@@ -2,28 +2,32 @@
 // /frontend/src/lib/supabase.js
 import { createClient } from '@supabase/supabase-js';
 
-// Use environment variables or fallback to test values
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://wxyzabcdefghijklmnopq.supabase.co';
-const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4ZGF1cGxsenl6Y25wcWd5dG1oIiwicm9sZSI6ImFub24iLCJpYXQiOjE2NDUxMDU3MjgsImV4cCI6MTk2MDY4MTcyOH0.fakekey12345-for-development-only';
+// Use environment variables
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
-// For development purposes - add a console log to check connection
-console.log('Supabase connection status:', supabaseUrl ? 'URL configured' : 'URL missing', supabaseAnonKey ? 'Key configured' : 'Key missing');
+// Check if credentials are available
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Supabase credentials missing. Please check your environment variables.');
+}
 
 // Create the Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Mock authentication functions for development if needed
-if (!supabaseUrl || !supabaseAnonKey || process.env.NODE_ENV === 'development') {
-  console.warn('Using mock authentication for development. Remove in production.');
+// Optional: You can keep this for development/fallback, but ONLY activate if explicitly needed 
+// by checking a separate flag, not NODE_ENV
+const USE_MOCK_AUTH = false; // Set this to false to use real Supabase auth
+
+if (USE_MOCK_AUTH && (!supabaseUrl || !supabaseAnonKey)) {
+  console.warn('Using mock authentication as fallback.');
   
-  // Override authentication methods with mock implementations for development
   const mockUser = {
     id: 'mock-user-id',
     email: 'demo@botclub.com',
     user_metadata: { full_name: 'Demo User' }
   };
   
-  // This is only used if Supabase credentials are missing
+  // Mock implementations
   supabase.auth.signInWithPassword = async () => ({ 
     data: { user: mockUser, session: { user: mockUser } },
     error: null

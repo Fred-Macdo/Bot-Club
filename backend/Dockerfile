@@ -1,15 +1,17 @@
 # Use an official Python runtime as a parent image
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # Set the working directory in the container
 WORKDIR /app
 
 # Copy the requirements file into the container at /app
-COPY ./src/requirements.txt /app/requirements.txt
+COPY requirements.txt /app/requirements.txt
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r /app/requirements.txt
+    pip install --no-cache-dir -r /app/requirements.txt && \
+    pip install 'pydantic[email,timezone]'
+    
 
 # Copy the rest of the backend application code into the container at /app
 COPY . /app
@@ -18,6 +20,5 @@ COPY . /app
 EXPOSE 8000
 
 # Define the command to run your app using Uvicorn
-# Replace 'main:app' with your actual Python file and FastAPI app instance
-# For example, if your main file is app.py and your FastAPI instance is 'api', it would be 'app:api'
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# If main.py is in src/, refer to it as src.main
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

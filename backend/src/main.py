@@ -1,20 +1,30 @@
 from fastapi import FastAPI
-from pymongo import MongoClient
-import os
+from fastapi.middleware.cors import CORSMiddleware
+from .routers import users
 
-app = FastAPI()
+app = FastAPI(
+    title="Bot Club API",
+    description="API for Bot Club trading application",
+    version="0.1.0"
+)
 
-# MongoDB connection
-mongo_url = os.getenv("MONGO_URL", "mongodb://localhost:27017/")
-client = MongoClient(mongo_url)
-db = client["farm_stack_project"]
+# --- CORS Middleware Configuration ---
+origins = [
+    "http://localhost:3000",
+]
 
-@app.get("/")
-def read_root():
-    return {"message": "Welcome to the FARM Stack Project!"}
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+# --- End CORS Middleware Configuration ---
 
-@app.get("/api/data")
-def get_data():
-    # Example MongoDB query
-    data = db.collection_name.find_one()
-    return {"data": data}
+# Include routers
+app.include_router(users.router)
+
+@app.get("/", tags=["Root"])
+async def read_root():
+    return {"message": "Welcome to the Bot Club API"}

@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.13'
 
 services:
   backend:
@@ -9,7 +9,6 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app # Mounts the host's backend directory to /app in the container
-      - /app/node_modules # Preserves node_modules installed in the image
     environment:
       - MONGO_URL=mongodb://mongo:27017/bot_club_db # Added a database name
       - NODE_ENV=development
