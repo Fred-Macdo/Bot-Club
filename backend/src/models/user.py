@@ -52,6 +52,14 @@ class User(UserBase):
         populate_by_name = True
         from_attributes = True
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    expires_in: Optional[int] = None
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+
 # Helper functions
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)

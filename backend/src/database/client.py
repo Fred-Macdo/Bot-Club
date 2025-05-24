@@ -68,7 +68,6 @@ ALGORITHM = "HS256"
 
 if not SUPABASE_JWT_SECRET:
     logger.critical("SUPABASE_JWT_SECRET environment variable is not set. Authentication will fail.")
-    # In production, you might want to raise an exception here to prevent startup
 
 async def get_current_user_from_token(
     token: str = Depends(oauth2_scheme),
@@ -113,3 +112,4 @@ async def get_current_user_from_token(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error retrieving user information"
         )
+    
