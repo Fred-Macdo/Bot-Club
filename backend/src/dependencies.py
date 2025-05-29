@@ -1,4 +1,15 @@
+from dotenv import load_dotenv
 import os
+from pathlib import Path
+
+# Load environment variables from .env file
+# This looks for .env in the backend directory (parent of src)
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
+# Alternative: Load from current directory and parent directories
+# load_dotenv()
+
 from pymongo import MongoClient
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -7,7 +18,6 @@ from typing import Optional
 import logging
 
 # Ensure correct relative imports based on your project structure
-from .crud.user import get_user_by_supabase_id
 from .models.user import UserInDB
 from pymongo.database import Database
 
@@ -30,8 +40,8 @@ def get_mongo_url():
         
         if not password:
             raise ValueError("MONGO_PASSWORD environment variable is required for Atlas connection")
-            
-        return f"mongodb+srv://{username}:{password}@{cluster}/?retryWrites=true&w=majority&appName=bot-club-cluster"
+        
+        return f"mongodb+srv://{username}:{password}@{cluster}/bot_club_db?retryWrites=true&w=majority"
 
 # Initialize MongoDB connection
 try:
@@ -49,12 +59,15 @@ except Exception as e:
 db_name = os.getenv("MONGO_DB_NAME", "bot_club_db")
 db_instance: Database = client[db_name]
 
-def get_db() -> Database:
+def get_db():
     """Dependency to get database instance"""
     try:
         yield db_instance
+    except HTTPException:
+        # Re-raise HTTPExceptions (like 401, 404, etc.) without modification
+        raise
     except Exception as e:
-        logger.error(f"Database error: {e}")
+        logger.error(f"Database error in get_db: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database connection error"
@@ -63,11 +76,12 @@ def get_db() -> Database:
 # --- Authentication ---
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 
-SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
+# Use our backend JWT secret, not Supabase JWT secret for our own tokens
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 ALGORITHM = "HS256"
 
-if not SUPABASE_JWT_SECRET:
-    logger.critical("SUPABASE_JWT_SECRET environment variable is not set. Authentication will fail.")
+if not JWT_SECRET_KEY:
+    logger.critical("JWT_SECRET_KEY environment variable is not set. Authentication will fail.")
     # In production, you might want to raise an exception here to prevent startup
 
 async def get_current_user_from_token(
@@ -76,7 +90,7 @@ async def get_current_user_from_token(
 ) -> UserInDB:
     """Extract and validate user from JWT token"""
     
-    if not SUPABASE_JWT_SECRET:
+    if not JWT_SECRET_KEY:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="JWT Secret not configured on the server. Cannot authenticate.",
@@ -89,9 +103,9 @@ async def get_current_user_from_token(
     )
     
     try:
-        payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=[ALGORITHM])
-        supabase_id: Optional[str] = payload.get("sub")
-        if supabase_id is None:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: Optional[str] = payload.get("sub")
+        if user_id is None:
             raise credentials_exception
 
     except JWTError as e:
@@ -99,7 +113,9 @@ async def get_current_user_from_token(
         raise credentials_exception from e
 
     try:
-        user = get_user_by_supabase_id(db, supabase_id)
+        # Import the correct function
+        from .crud.user import get_user_by_mongodb_id
+        user = await get_user_by_mongodb_id(db, user_id)
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

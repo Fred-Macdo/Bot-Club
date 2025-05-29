@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import users
-from .database import client  # Your MongoDB client
+from .routes import users, auth, strategies
+from .dependencies import client  # Your MongoDB client
 
 
 app = FastAPI(
@@ -13,6 +13,7 @@ app = FastAPI(
 # --- CORS Middleware Configuration ---
 origins = [
     "http://localhost:3000",
+    "http://localhost:3001",  # Add additional frontend ports if needed
 ]
 
 app.add_middleware(
@@ -25,7 +26,9 @@ app.add_middleware(
 # --- End CORS Middleware Configuration ---
 
 # Include routers
-app.include_router(users.router)
+app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(users.router, prefix="/api/users", tags=["Users"])
+app.include_router(strategies.router, prefix="/api/strategies", tags=["Strategies"])
 
 # Add startup/shutdown events for MongoDB
 @app.on_event("startup")

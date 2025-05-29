@@ -1,8 +1,7 @@
 // /frontend/src/components/auth/RegisterPage.js
 import React, { useState } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
-import { useAuth } from '../router/AuthContext';
-import { supabase } from '../../lib/supabase'; // Added import for supabase client
+import axios from 'axios';
 import {
   Box,
   Button,
@@ -23,7 +22,6 @@ import { PhotoCamera as PhotoCameraIcon } from '@mui/icons-material';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
-  const { signUp } = useAuth();
   
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState('');
@@ -164,6 +162,9 @@ const RegisterPage = () => {
     const newErrors = {};
     
     // Account credentials validation
+    if (!userData.userName.trim()) { // Ensure userName is validated
+      newErrors.userName = 'Username is required';
+    }
     if (!userData.email.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(userData.email)) {
@@ -208,98 +209,56 @@ const RegisterPage = () => {
     setLoading(true);
     
     try {
-      // Step 1: Sign up with Supabase
-      const fullName = `${userData.firstName} ${userData.lastName}`.trim(); // Construct full_name
-
-      const { data: supabaseData, error: supabaseError } = await supabase.auth.signUp({
-        email: userData.email,
-        password: userData.password,
-        options: {
-          data: { 
-            username: userData.userName, // Pass username
-            full_name: fullName         // Pass full_name
-            // avatar_url will not be passed here as it's removed from Supabase profiles
-          }
-        }
-      });
-
-      if (supabaseError) {
-        setFormError(`Registration failed: ${supabaseError.message}`);
-        setLoading(false);
-        return;
-      }
-
-      if (!supabaseData.user) {
-        // This case should ideally be covered by supabaseError, but as a safeguard:
-        setFormError('Registration did not return a user. Please try again.');
-        setLoading(false);
-        return;
-      }
-
-      const supabaseId = supabaseData.user.id;
-
-      // Step 2: Prepare data for your backend, including the supabaseId
-      const profileData = {
-        firstName: userData.firstName,
-        lastName: userData.lastName,
-        phoneNumber: userData.phone || null, // Matches UserProfile.phoneNumber
-        bio: userData.bio || null,          // Matches UserProfile.bio
-        avatarBase64: userData.profileImage || null, // Send base64 image string
-        address: null,
-      };
-
-      if (userData.addressLine1) {
-        profileData.address = {
-          street: userData.addressLine1,        // Matches Address.street
-          // If userData.addressLine2 exists, you might append it to street:
-          street: userData.addressLine2 ? `${userData.addressLine1}, ${userData.addressLine2}` : userData.addressLine1,
-          city: userData.city || null,          // Matches Address.city
-          state: userData.state || null,        // Matches Address.state
-          postalCode: userData.zipCode || null, // Matches Address.postalCode
-          // country: userData.country || null, // Add if you have a country field in form
-        };
-      }
-
-      const userDataToSave = {
+      // Create UserCreate payload with all profile fields
+      const registrationData = {
         userName: userData.userName,
         email: userData.email,
-        password: userData.password, // Backend expects password for its own hashing
-        supabaseId: supabaseId,      // Pass the Supabase User ID
-        profile: profileData,
+        password: userData.password,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        phone: userData.phone || null,
+        addressLine1: userData.addressLine1 || null,
+        addressLine2: userData.addressLine2 || null,
+        city: userData.city || null,
+        state: userData.state || null,
+        zipCode: userData.zipCode || null,
+        timezone: userData.timezone,
+        bio: userData.bio || null,
+        profileImage: userData.profileImage || null,
       };
       
-      // Call your backend signUp function (from AuthContext)
-      const { error: backendError } = await signUp(userDataToSave);
+      // Call the backend register endpoint directly
+      const response = await axios.post('/api/auth/register', registrationData);
       
-      if (backendError) {
-        // Handle case where Supabase user was created, but backend registration failed
-        // For now, just show an error. More advanced handling could involve trying to clean up the Supabase user.
-        setFormError(`Profile creation failed: ${backendError.message}. Your account was created with our authentication provider, but profile setup failed. Please contact support.`);
-        // Potentially log supabaseId here for manual cleanup if needed
-        console.error('Backend registration failed after Supabase success. Supabase User ID:', supabaseId);
-        setLoading(false);
-        return;
-      }
-      
-      // Both Supabase and backend registration successful
-      if (supabaseData.user && !supabaseData.session && supabaseData.user.identities && supabaseData.user.identities.length > 0) {
-        // User created in Supabase, but email confirmation might be pending
-        alert('Registration successful! Please check your email to confirm your account before logging in.');
-        navigate('/login'); // Or to a page that says "check your email"
-      } else if (supabaseData.session) {
-        // User is created and session is active (e.g., auto-confirm enabled in Supabase)
-        alert('Registration successful! You are now logged in.');
-        navigate('/dashboard'); // Or wherever logged-in users should go
-      } else {
-        // Fallback, should ideally be covered by above conditions
-        alert('Registration successful! You can now try to log in.');
-        navigate('/login');
-      }
+      if (response.data.message && response.data.user_id) {
+        // Registration successful, now log the user in to get a token
+        const formData = new FormData();
+        formData.append('username', userData.email);
+        formData.append('password', userData.password);
 
+        const loginResponse = await axios.post('/api/auth/token', formData, {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        });
+        
+        const { access_token } = loginResponse.data;
+
+        // Store the token
+        localStorage.setItem('authToken', access_token);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+        
+        console.log('Registration and login successful:', { registration: response.data, token: access_token });
+        alert('Registration successful! You are now logged in.');
+        navigate('/dashboard');
+      } else {
+        setFormError('Registration failed: Invalid response from server');
+      }
+      
     } catch (error) {
-      // Catch-all for unexpected errors during the process
-      console.error('Unexpected registration error:', error);
-      setFormError('An unexpected error occurred during registration. Please try again.');
+      console.error('Registration error:', error);
+      const errorMessage = error.response?.data?.detail || 'Registration failed. Please try again.';
+      setFormError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -384,6 +343,7 @@ const RegisterPage = () => {
           
           <Typography sx={{ color: '#d4c892', mb: 1 }}>Username *</Typography>
           <TextField
+            required // Make userName field required
             fullWidth
             id="userName"
             name="userName"

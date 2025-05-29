@@ -1,6 +1,14 @@
 // src/api/alpacaService.js
 // This file will handle our API calls to the FastAPI backend
-const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+import { authApi } from './Client';
+
+const BASE_URL = process.env.REACT_APP_API_URL || '';
+
+// Helper function to get auth token
+const getAuthToken = () => {
+  const token = localStorage.getItem('token');
+  return token;
+};
 
 export const testAlpacaConnection = async (config, token) => {
   try {
@@ -25,23 +33,30 @@ export const testAlpacaConnection = async (config, token) => {
   }
 };
 
-export const fetchUserStrategies = async (token) => {
+export const fetchUserStrategies = async (userId) => {
   try {
+    const token = getAuthToken();
     const response = await fetch(`${BASE_URL}/api/strategies`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
     });
     
-    return await response.json();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const strategies = await response.json();
+    return { success: true, strategies };
   } catch (error) {
     console.error('Error fetching strategies:', error);
     return { success: false, error: 'Failed to fetch strategies' };
   }
 };
 
-export const saveStrategy = async (strategy, token) => {
+export const saveStrategy = async (strategy, userId) => {
   try {
+    const token = getAuthToken();
     const response = await fetch(`${BASE_URL}/api/strategies`, {
       method: 'POST',
       headers: {
@@ -51,15 +66,21 @@ export const saveStrategy = async (strategy, token) => {
       body: JSON.stringify(strategy)
     });
     
-    return await response.json();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const savedStrategy = await response.json();
+    return { success: true, strategy: savedStrategy };
   } catch (error) {
     console.error('Error saving strategy:', error);
     return { success: false, error: 'Failed to save strategy' };
   }
 };
 
-export const updateStrategy = async (id, strategy, token) => {
+export const updateStrategy = async (id, strategy, userId) => {
   try {
+    const token = getAuthToken();
     const response = await fetch(`${BASE_URL}/api/strategies/${id}`, {
       method: 'PUT',
       headers: {
@@ -69,15 +90,21 @@ export const updateStrategy = async (id, strategy, token) => {
       body: JSON.stringify(strategy)
     });
     
-    return await response.json();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const updatedStrategy = await response.json();
+    return { success: true, strategy: updatedStrategy };
   } catch (error) {
     console.error('Error updating strategy:', error);
     return { success: false, error: 'Failed to update strategy' };
   }
 };
 
-export const deleteStrategy = async (id, token) => {
+export const deleteStrategy = async (id, userId) => {
   try {
+    const token = getAuthToken();
     const response = await fetch(`${BASE_URL}/api/strategies/${id}`, {
       method: 'DELETE',
       headers: {
@@ -85,16 +112,21 @@ export const deleteStrategy = async (id, token) => {
       }
     });
     
-    return await response.json();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return { success: true };
   } catch (error) {
     console.error('Error deleting strategy:', error);
     return { success: false, error: 'Failed to delete strategy' };
   }
 };
 
-export const runBacktest = async (id, params, token) => {
+export const runBacktest = async (id, params, userId) => {
   try {
-    const response = await fetch(`${BASE_URL}/api/backtest/${id}`, {
+    const token = getAuthToken();
+    const response = await fetch(`${BASE_URL}/api/strategies/${id}/backtest`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -103,42 +135,60 @@ export const runBacktest = async (id, params, token) => {
       body: JSON.stringify(params)
     });
     
-    return await response.json();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    return { success: true, ...result };
   } catch (error) {
     console.error('Error running backtest:', error);
     return { success: false, error: 'Failed to run backtest' };
   }
 };
 
-export const startPaperTrading = async (id, token) => {
+export const getBacktestResults = async (strategyId, userId) => {
   try {
-    const response = await fetch(`${BASE_URL}/api/paper-trading/${id}/start`, {
-      method: 'POST',
+    const token = getAuthToken();
+    const response = await fetch(`${BASE_URL}/api/strategies/${strategyId}/backtest`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
     });
     
-    return await response.json();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const results = await response.json();
+    return { success: true, results };
   } catch (error) {
-    console.error('Error starting paper trading:', error);
-    return { success: false, error: 'Failed to start paper trading' };
+    console.error('Error fetching backtest results:', error);
+    return { success: false, error: 'Failed to fetch backtest results' };
   }
 };
 
-export const stopPaperTrading = async (id, token) => {
+export const toggleLiveTrading = async (id, isActive, userId) => {
   try {
-    const response = await fetch(`${BASE_URL}/api/paper-trading/${id}/stop`, {
+    const token = getAuthToken();
+    const response = await fetch(`${BASE_URL}/api/strategies/${id}/toggle`, {
       method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
-      }
+      },
+      body: JSON.stringify({ is_active: isActive })
     });
     
-    return await response.json();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    return { success: true, strategy: result };
   } catch (error) {
-    console.error('Error stopping paper trading:', error);
-    return { success: false, error: 'Failed to stop paper trading' };
+    console.error('Error toggling live trading:', error);
+    return { success: false, error: 'Failed to toggle live trading' };
   }
 };
 

@@ -2,8 +2,9 @@
 
 class ApiClient {
   constructor() {
-    this.baseURL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
-    this.tokenKey = 'bot_club_access_token';
+    // Use relative URLs when proxy is configured, absolute URLs otherwise
+    this.baseURL = process.env.REACT_APP_API_BASE_URL || '';
+    this.tokenKey = 'authToken'; // Use consistent key
   }
 
   // Get stored token from localStorage
@@ -13,7 +14,9 @@ class ApiClient {
 
   // Save token to localStorage
   setToken(token) {
-    localStorage.setItem(this.tokenKey, token);
+    if (token) {
+      localStorage.setItem(this.tokenKey, token);
+    }
   }
 
   // Remove token from localStorage
@@ -41,11 +44,15 @@ class ApiClient {
     const url = `${this.baseURL}${endpoint}`;
     const token = this.getToken();
 
-    // Default headers
+    // Default headers - but don't set Content-Type if body is FormData
     const headers = {
-      'Content-Type': 'application/json',
       ...options.headers,
     };
+
+    // Only set JSON content type if we're not sending FormData
+    if (!(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     // Add authentication header if token exists
     if (token) {
@@ -70,8 +77,37 @@ class ApiClient {
 
       // Handle other HTTP errors
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        
+        try {
+          const errorData = await response.json();
+          
+          // Handle validation errors (422) - FastAPI format
+          if (response.status === 422 && errorData.detail) {
+            if (Array.isArray(errorData.detail)) {
+              // Handle FastAPI validation errors
+              errorMessage = errorData.detail.map(err => {
+                const location = err.loc && Array.isArray(err.loc) ? err.loc.join('.') : 'field';
+                const message = err.msg || 'validation error';
+                return `${location}: ${message}`;
+              }).join(', ');
+            } else if (typeof errorData.detail === 'string') {
+              // Handle simple string detail
+              errorMessage = errorData.detail;
+            } else {
+              // Handle other detail formats
+              errorMessage = JSON.stringify(errorData.detail);
+            }
+          } else {
+            // Handle other error formats
+            errorMessage = errorData.detail || errorData.message || errorMessage;
+          }
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError);
+          errorMessage = `HTTP error! status: ${response.status}`;
+        }
+        
+        throw new Error(errorMessage);
       }
 
       // Return JSON if response has content
@@ -82,7 +118,12 @@ class ApiClient {
       
       return response;
     } catch (error) {
-      console.error('API request failed:', error);
+      console.error('API request failed:', {
+        url,
+        method: config.method || 'GET',
+        error: error.message,
+        status: error.status
+      });
       throw error;
     }
   }
@@ -118,7 +159,7 @@ class ApiClient {
       ...options,
       method: 'POST',
       headers: {
-        // Don't set Content-Type, let browser set it for FormData
+        // Remove Content-Type completely - let browser set it for FormData
         ...options.headers,
       },
       body: formData,
@@ -129,58 +170,54 @@ class ApiClient {
 // Create a singleton instance
 const apiClient = new ApiClient();
 
-// 🔐 AUTHENTICATION METHODS
+// 🔐 AUTHENTICATION METHODS - Cleaned up to use consistent token management
 export const authApi = {
-  // Login user
-  async login(email, password) {
-    const formData = new FormData();
-    formData.append('username', email);
-    formData.append('password', password);
-
-    const response = await apiClient.postForm('/api/auth/token', formData);
-    
-    // Save token to localStorage
-    if (response.access_token) {
-      apiClient.setToken(response.access_token);
-    }
-    
-    return response;
-  },
-
-  // Register new user
-  async register(email, password) {
-    return apiClient.post('/api/auth/register', {
-      email,
-      password,
-    });
-  },
-
-  // Logout user
-  logout() {
-    apiClient.removeToken();
-    window.location.href = '/login';
-  },
-
-  // Sync with Supabase (if using Supabase + your backend)
-  async syncSupabaseUser(supabaseToken) {
-    const response = await apiClient.post('/api/auth/supabase-sync', {
-      supabase_token: supabaseToken,
-    });
-    
-    if (response.access_token) {
-      apiClient.setToken(response.access_token);
-    }
-    
-    return response;
-  },
-
   // Check if user is authenticated
   isAuthenticated() {
     return apiClient.isAuthenticated();
   },
+
+  async login(username, password) {
+    const formData = new FormData();
+    formData.append('username', username);
+    formData.append('password', password);
+
+    const response = await apiClient.postForm('/api/auth/token', formData);
+    
+    // Save token using ApiClient's method
+    if (response.access_token) {
+      apiClient.setToken(response.access_token);
+    }
+    
+    return response;
+  },
+
+  async register(userData) {
+    const response = await apiClient.post('/api/auth/register', userData);
+    
+    // If registration returns a token, save it
+    if (response.access_token) {
+      apiClient.setToken(response.access_token);
+    }
+    
+    return response;
+  },
+
+  // Use consistent profile endpoint
+  async getUserProfile() {
+    return apiClient.get('/api/users/me');
+  },
+
+  async updateUserProfile(profileData) {
+    return apiClient.put('/api/users/me', profileData);
+  },
+
+  logout() {
+    apiClient.removeToken();
+  },
 };
 
-// 👤 USER METHODS
+// 👤 USER METHODS - Keep these for consistency but they're duplicates now
 export const userApi = {
   // Get current user profile
   async getProfile() {
@@ -192,7 +229,7 @@ export const userApi = {
     return apiClient.put('/api/users/me', userData);
   },
 
-  // Delete user account
+  // Delete user account (if needed in future)
   async deleteAccount() {
     return apiClient.delete('/api/users/me');
   },
@@ -231,8 +268,11 @@ export const strategyApi = {
   },
 
   // Get backtest results
-  async getBacktestResults(strategyId, backtestId) {
-    return apiClient.get(`/api/strategies/${strategyId}/backtest/${backtestId}`);
+  async getBacktestResults(strategyId, backtestId = null) {
+    if (backtestId) {
+      return apiClient.get(`/api/strategies/${strategyId}/backtest/${backtestId}`);
+    }
+    return apiClient.get(`/api/strategies/${strategyId}/backtest`);
   },
 
   // Start/stop live trading

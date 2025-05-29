@@ -44,12 +44,14 @@ const Sidebar = () => {
     return location.pathname === path || location.pathname.startsWith(`${path}/`);
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     try {
-      await signOut();
+      signOut(); // signOut is not async, so don't await it
       navigate('/login');
     } catch (error) {
       console.error('Error signing out:', error);
+      // Still navigate to login even if there's an error
+      navigate('/login');
     }
   };
 
