@@ -1,7 +1,7 @@
 // /frontend/src/components/auth/RegisterPage.js
 import React, { useState } from 'react';
-import { useNavigate, Link as RouterLink } from 'react-router-dom';
-import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../router/AuthContext';
 import {
   Box,
   Button,
@@ -11,7 +11,6 @@ import {
   Container,
   Alert,
   CircularProgress,
-  Link,
   Grid,
   MenuItem,
   Avatar,
@@ -22,6 +21,7 @@ import { PhotoCamera as PhotoCameraIcon } from '@mui/icons-material';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
+  const { signUp } = useAuth();
   
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState('');
@@ -47,22 +47,8 @@ const RegisterPage = () => {
     bio: '',
     profileImage: null
   });
-  
-  // Form validation errors
+    // Form validation errors
   const [errors, setErrors] = useState({});
-  
-  // Timezone options
-  const timezones = [
-    { value: 'America/New_York', label: 'Eastern Time (ET)' },
-    { value: 'America/Chicago', label: 'Central Time (CT)' },
-    { value: 'America/Denver', label: 'Mountain Time (MT)' },
-    { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
-    { value: 'America/Anchorage', label: 'Alaska Time (AKT)' },
-    { value: 'Pacific/Honolulu', label: 'Hawaii Time (HT)' },
-    { value: 'Europe/London', label: 'Greenwich Mean Time (GMT)' },
-    { value: 'Europe/Paris', label: 'Central European Time (CET)' },
-    { value: 'Asia/Tokyo', label: 'Japan Standard Time (JST)' }
-  ];
 
   // States options
   const states = [
@@ -197,8 +183,7 @@ const RegisterPage = () => {
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-  
-  const handleSubmit = async (e) => {
+    const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!validateForm()) {
@@ -226,44 +211,26 @@ const RegisterPage = () => {
         bio: userData.bio || null,
         profileImage: userData.profileImage || null,
       };
-      
-      // Call the backend register endpoint directly
-      const response = await axios.post('/api/auth/register', registrationData);
-      
-      if (response.data.message && response.data.user_id) {
-        // Registration successful, now log the user in to get a token
-        const formData = new FormData();
-        formData.append('username', userData.email);
-        formData.append('password', userData.password);
 
-        const loginResponse = await axios.post('/api/auth/token', formData, {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-        });
-        
-        const { access_token } = loginResponse.data;
-
-        // Store the token
-        localStorage.setItem('authToken', access_token);
-        axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
-        
-        console.log('Registration and login successful:', { registration: response.data, token: access_token });
-        alert('Registration successful! You are now logged in.');
-        navigate('/dashboard');
+      // Use AuthContext's signUp method
+      const { data, error } = await signUp(registrationData);
+      
+      if (error) {
+        setFormError(error.message);
+        console.error('Registration error:', error);
       } else {
-        setFormError('Registration failed: Invalid response from server');
+        console.log('Registration successful:', data);
+        navigate('/dashboard');
       }
       
     } catch (error) {
       console.error('Registration error:', error);
-      const errorMessage = error.response?.data?.detail || 'Registration failed. Please try again.';
+      const errorMessage = error.message || 'Registration failed. Please try again.';
       setFormError(errorMessage);
     } finally {
       setLoading(false);
     }
-  };
-  
+  };  
   return (
     <Container
       component="main"
@@ -668,19 +635,9 @@ const RegisterPage = () => {
                 bgcolor: '#bfae6a'
               }
             }}
-            disabled={loading}
-          >
+            disabled={loading}          >
             {loading ? <CircularProgress size={24} sx={{ color: '#113c35' }} /> : 'Sign Up'}
-          </Button>
-          
-          <Grid container justifyContent="flex-end">
-            <Grid item>
-              <Link component={RouterLink} to="/login" variant="body2" sx={{ color: '#d4c892' }}>
-                Already have an account? Sign in
-              </Link>
-            </Grid>
-          </Grid>
-        </Box>
+          </Button>        </Box>
       </Paper>
     </Container>
   );

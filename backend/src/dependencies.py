@@ -25,13 +25,16 @@ from pymongo.database import Database
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# MongoDB connection
+# MongoDB connection globals - initialized in startup
+client: Optional[MongoClient] = None
+db_instance: Optional[Database] = None
+
 def get_mongo_url():
     """Get MongoDB connection URL based on environment"""
     local = os.getenv("LOCAL_DB", "false").lower() == "true"
     
     if local:
-        return os.getenv("MONGO_URL", "mongodb://localhost:27017/")
+        return os.getenv("MONGO_URL", "mongodb://mongo:27017/")  # Use docker service name
     else:
         # For MongoDB Atlas
         username = os.getenv("MONGO_USERNAME", "fred-bot-club")
@@ -43,24 +46,42 @@ def get_mongo_url():
         
         return f"mongodb+srv://{username}:{password}@{cluster}/bot_club_db?retryWrites=true&w=majority"
 
-# Initialize MongoDB connection
-try:
-    mongo_url = get_mongo_url()
-    client = MongoClient(mongo_url)
+async def connect_to_mongo():
+    """Initialize MongoDB connection - called during startup"""
+    global client, db_instance
     
-    # Test the connection
-    client.admin.command('ping')
-    logger.info("Successfully connected to MongoDB Atlas")
-    
-except Exception as e:
-    logger.error(f"Failed to connect to MongoDB: {e}")
-    raise
+    try:
+        mongo_url = get_mongo_url()
+        client = MongoClient(mongo_url)
+        
+        # Test the connection
+        client.admin.command('ping')
+        logger.info("Successfully connected to MongoDB")
+        
+        db_name = os.getenv("MONGO_DB_NAME", "bot_club_db")
+        db_instance = client[db_name]
+        
+    except Exception as e:
+        logger.error(f"Failed to connect to MongoDB: {e}")
+        raise
 
-db_name = os.getenv("MONGO_DB_NAME", "bot_club_db")
-db_instance: Database = client[db_name]
+async def close_mongo_connection():
+    """Close MongoDB connection - called during shutdown"""
+    global client
+    if client:
+        client.close()
+        logger.info("MongoDB connection closed")
 
 def get_db():
     """Dependency to get database instance"""
+    global db_instance
+    
+    if db_instance is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database not initialized"
+        )
+    
     try:
         yield db_instance
     except HTTPException:

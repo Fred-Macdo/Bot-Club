@@ -27,9 +27,9 @@ services:
       - /app/node_modules # Preserves node_modules installed in the image
     environment:
       - NODE_ENV=development
-    # If your frontend needs to wait for the backend during development (e.g., for proxying)
-    # depends_on:
-    #   - backend
+      - REACT_APP_API_URL=http://backend:8000
+    depends_on:
+      - backend
     restart: unless-stopped
 
   mongo:

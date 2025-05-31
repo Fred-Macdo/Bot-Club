@@ -13,6 +13,7 @@ import PaperTradingPage from '../trading/PaperTrade';
 import LiveTradingPage from '../trading/LiveTrade';
 import AccountSettings from '../account/AccountSettings';
 import LandingPage from '../landing/LandingPage';
+import ApiTest from '../ApiTest'; // Import the test component
 
 const AppRouter = () => {
   return (
@@ -22,6 +23,7 @@ const AppRouter = () => {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/api-test" element={<ApiTest />} />
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>

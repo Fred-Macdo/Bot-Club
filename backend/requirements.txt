@@ -1,5 +1,6 @@
 FastAPI
 pymongo
+motor
 uvicorn
 python-dotenv
 passlib
@@ -10,3 +11,4 @@ email-validator
 PyJWT
 python-jose[cryptography]
 httpx
+requests

@@ -2,22 +2,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional
 from datetime import datetime
 from bson import ObjectId
-
-# Custom ObjectId handler
-class PyObjectId(ObjectId):
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, v, values=None):
-        if not ObjectId.is_valid(v):
-            raise ValueError("Invalid objectid")
-        return ObjectId(v)
-
-    @classmethod
-    def __get_pydantic_json_schema__(cls, field_schema):
-        field_schema.update(type="string")
+from ..utils.mongo_helpers import PyObjectId
 
 class UserAddress(BaseModel):
     addressLine1: Optional[str] = Field(default=None, alias="line1")
@@ -27,7 +12,7 @@ class UserAddress(BaseModel):
     zipCode: Optional[str] = None
 
     class Config:
-        populate_by_name = True
+        validate_by_name = True
 
 class UserBase(BaseModel):
     userName: str = Field(..., min_length=3, max_length=50)
@@ -47,7 +32,7 @@ class UserBase(BaseModel):
     isActive: bool = Field(default=True, alias="is_active")
 
     class Config:
-        populate_by_name = True
+        validate_by_name = True
         arbitrary_types_allowed = True
 
 class UserCreate(UserBase):
@@ -76,7 +61,7 @@ class UserUpdate(BaseModel):
     profileImage: Optional[str] = None
 
     class Config:
-        populate_by_name = True
+        validate_by_name = True
 
 class UserInDB(UserBase):
     id: Optional[str] = Field(alias="_id", default=None)
@@ -91,7 +76,7 @@ class UserInDB(UserBase):
         return v
     
     class Config:
-        populate_by_name = True
+        validate_by_name = True
         from_attributes = True
         arbitrary_types_allowed = True
 
@@ -107,7 +92,7 @@ class User(UserBase):
         return v
     
     class Config:
-        populate_by_name = True
+        validate_by_name = True
         from_attributes = True
         arbitrary_types_allowed = True
 
@@ -138,7 +123,7 @@ class UserProfile(BaseModel):
         return v
     
     class Config:
-        populate_by_name = True
+        validate_by_name = True
         from_attributes = True
         arbitrary_types_allowed = True
 

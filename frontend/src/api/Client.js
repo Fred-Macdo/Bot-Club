@@ -2,9 +2,18 @@
 
 class ApiClient {
   constructor() {
-    // Use relative URLs when proxy is configured, absolute URLs otherwise
-    this.baseURL = process.env.REACT_APP_API_BASE_URL || '';
+    // Check if we're running in Docker environment
+    const isDocker = process.env.REACT_APP_API_URL && process.env.REACT_APP_API_URL.includes('backend:');
+    
+    // If running in Docker, use empty string to leverage proxy
+    // Otherwise use the configured API URL or default to localhost
+    this.baseURL = isDocker ? '' : (process.env.REACT_APP_API_URL || 'http://localhost:8000');
     this.tokenKey = 'authToken'; // Use consistent key
+    
+    console.log('ApiClient - Environment:', process.env.NODE_ENV);
+    console.log('ApiClient - REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
+    console.log('ApiClient - Is Docker:', isDocker);
+    console.log('ApiClient - Using baseURL:', this.baseURL);
   }
 
   // Get stored token from localStorage

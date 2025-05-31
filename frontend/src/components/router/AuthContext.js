@@ -61,24 +61,16 @@ export function AuthProvider({ children }) {
       return { data: null, error: { message: errorMessage } };
     }
   };
-
-  const signUp = async (name, email, password) => {
+  const signUp = async (registrationData) => {
     setLoading(true);
     try {
       console.log('Attempting registration...');
-      const registrationData = {
-        userName: name,
-        email: email,
-        password: password,
-        firstName: name,
-        lastName: '',
-      };
 
       await authApi.register(registrationData);
       console.log('Registration successful, logging in...');
       
       // After successful registration, login automatically
-      const loginResponse = await authApi.login(email, password);
+      const loginResponse = await authApi.login(registrationData.email, registrationData.password);
       
       // Get user profile
       const userResponse = await authApi.getUserProfile(); // Use profile endpoint

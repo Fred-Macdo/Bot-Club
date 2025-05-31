@@ -2,7 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from ..dependencies import get_db, get_current_user
+from ..dependencies import get_db, get_current_user_from_token
 from ..models.user import UserInDB
 from ..models.strategy import (
     Strategy,
@@ -68,7 +68,7 @@ def backtest_result_to_response(backtest_result: BacktestResult) -> BacktestResp
 
 @router.get("/", response_model=List[StrategyResponse])
 async def get_user_strategies(
-    current_user: UserInDB = Depends(get_current_user),
+    current_user: UserInDB = Depends(get_current_user_from_token),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """Get all strategies for the current user"""
@@ -84,7 +84,7 @@ async def get_user_strategies(
 @router.get("/{strategy_id}", response_model=StrategyResponse)
 async def get_strategy(
     strategy_id: str,
-    current_user: UserInDB = Depends(get_current_user),
+    current_user: UserInDB = Depends(get_current_user_from_token),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """Get a specific strategy by ID"""
@@ -108,7 +108,7 @@ async def get_strategy(
 @router.post("/", response_model=StrategyResponse)
 async def create_new_strategy(
     strategy_data: StrategyCreate,
-    current_user: UserInDB = Depends(get_current_user),
+    current_user: UserInDB = Depends(get_current_user_from_token),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """Create a new strategy"""
@@ -125,7 +125,7 @@ async def create_new_strategy(
 async def update_existing_strategy(
     strategy_id: str,
     strategy_update: StrategyUpdate,
-    current_user: UserInDB = Depends(get_current_user),
+    current_user: UserInDB = Depends(get_current_user_from_token),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """Update an existing strategy"""
@@ -149,7 +149,7 @@ async def update_existing_strategy(
 @router.delete("/{strategy_id}")
 async def delete_existing_strategy(
     strategy_id: str,
-    current_user: UserInDB = Depends(get_current_user),
+    current_user: UserInDB = Depends(get_current_user_from_token),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """Delete a strategy and its associated backtest results"""
@@ -186,7 +186,7 @@ async def delete_existing_strategy(
 async def toggle_strategy_trading(
     strategy_id: str,
     toggle_data: dict,
-    current_user: UserInDB = Depends(get_current_user),
+    current_user: UserInDB = Depends(get_current_user_from_token),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """Toggle strategy active/inactive status"""
@@ -232,7 +232,7 @@ async def start_backtest(
     strategy_id: str,
     backtest_params: BacktestParams,
     background_tasks: BackgroundTasks,
-    current_user: UserInDB = Depends(get_current_user),
+    current_user: UserInDB = Depends(get_current_user_from_token),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """Start a backtest for a strategy"""
@@ -264,7 +264,7 @@ async def start_backtest(
 @router.get("/{strategy_id}/backtest", response_model=List[BacktestResponse])
 async def get_strategy_backtest_results(
     strategy_id: str,
-    current_user: UserInDB = Depends(get_current_user),
+    current_user: UserInDB = Depends(get_current_user_from_token),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """Get all backtest results for a strategy"""
@@ -291,7 +291,7 @@ async def get_strategy_backtest_results(
 async def get_specific_backtest_result(
     strategy_id: str,
     backtest_id: str,
-    current_user: UserInDB = Depends(get_current_user),
+    current_user: UserInDB = Depends(get_current_user_from_token),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """Get a specific backtest result"""
