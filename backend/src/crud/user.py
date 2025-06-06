@@ -1,93 +1,79 @@
-from pymongo.database import Database
+from motor.motor_asyncio import AsyncIOMotorDatabase
 from bson import ObjectId
-from typing import Optional, Dict, Any
-from ..models.user import UserCreate, UserInDB, UserUpdate
-from ..utils.security import get_password_hash
-from datetime import datetime
+from typing import Optional
+from models.user import UserInDB, UserCreate
+from utils.security import get_password_hash
 
-async def get_user_by_email(db: Database, email: str) -> Optional[UserInDB]:
-    user_data = db.users.find_one({"email": email})
-    if user_data:
-        return UserInDB(**user_data)
-    return None
-
-async def get_user_by_username(db: Database, username: str) -> Optional[UserInDB]:
-    user_data = db.users.find_one({"userName": username})
-    if user_data:
-        return UserInDB(**user_data)
-    return None
-
-def create_user(db: Database, user_data: Dict[str, Any]) -> Optional[UserInDB]:
-    """
-    Create a new user in the database.
-    user_data should include hashed_password and all profile fields.
-    """
-    # Add timestamp
-    user_data["createdAt"] = datetime.utcnow()
-    
-    # Insert into database
-    result = db.users.insert_one(user_data)
-    
-    # Retrieve created user
-    created_user_data = db.users.find_one({"_id": result.inserted_id})
-    if created_user_data:
-        return UserInDB(**created_user_data)
-    return None
-
-async def create_user_from_model(db: Database, user: UserCreate) -> Optional[UserInDB]:
-    """
-    Create a new user from UserCreate model.
-    """
-    # Check if user with this email or username already exists
-    if await get_user_by_email(db, user.email):
-        return None
-    if await get_user_by_username(db, user.userName):
-        return None
-    
-    # Hash password
-    hashed_password = get_password_hash(user.password)
-    
-    # Prepare user data for database insertion
-    user_data = user.model_dump(exclude={"password", "confirmPassword"})
-    user_data["hashed_password"] = hashed_password
-    user_data["createdAt"] = datetime.utcnow()
-    
-    # Insert into database
-    result = db.users.insert_one(user_data)
-    
-    # Retrieve created user
-    created_user_data = db.users.find_one({"_id": result.inserted_id})
-    if created_user_data:
-        return UserInDB(**created_user_data)
-    return None
-
-async def get_user_by_mongodb_id(db: Database, user_id: str) -> Optional[UserInDB]:
-    """Get user by MongoDB _id"""
+async def get_user_by_mongodb_id(db: AsyncIOMotorDatabase, user_id: str) -> Optional[UserInDB]:
+    """Get user by MongoDB ObjectId"""
     try:
-        obj_id = ObjectId(user_id)
-    except Exception:
+        user_doc = await db.user.find_one({"_id": ObjectId(user_id)})
+        if user_doc:
+            return UserInDB(**user_doc)
         return None
-    user_data = db.users.find_one({"_id": obj_id})
-    if user_data:
-        return UserInDB(**user_data)
-    return None
+    except Exception as e:
+        print(f"Error getting user by ID: {e}")
+        return None
 
-async def update_user(db: Database, user_id: str, update_data: Dict[str, Any]) -> Optional[UserInDB]:
+async def get_user_by_email(db: AsyncIOMotorDatabase, email: str) -> Optional[UserInDB]:
+    """Get user by email"""
+    try:
+        user_doc = await db.user.find_one({"email": email})
+        if user_doc:
+            return UserInDB(**user_doc)
+        return None
+    except Exception as e:
+        print(f"Error getting user by email: {e}")
+        return None
+
+async def get_user_by_username(db: AsyncIOMotorDatabase, username: str) -> Optional[UserInDB]:
+    """Get user by username"""
+    try:
+        user_doc = await db.user.find_one({"userName": username})
+        if user_doc:
+            return UserInDB(**user_doc)
+        return None
+    except Exception as e:
+        print(f"Error getting user by username: {e}")
+        return None
+
+async def create_user(db: AsyncIOMotorDatabase, user: UserCreate) -> UserInDB:
+    """Create a new user"""
+    try:
+        user_dict = user.model_dump()
+        user_dict["hashed_password"] = get_password_hash(user_dict.pop("password"))
+        
+        result = await db.user.insert_one(user_dict)
+        created_user = await db.user.find_one({"_id": result.inserted_id})
+        
+        if created_user:
+            return UserInDB(**created_user)
+        else:
+            raise Exception("Failed to retrieve created user")
+    except Exception as e:
+        print(f"Error creating user: {e}")
+        raise
+
+async def update_user(db: AsyncIOMotorDatabase, user_id: str, update_data: dict) -> Optional[UserInDB]:
     """Update user data"""
     try:
-        obj_id = ObjectId(user_id)
-    except Exception:
+        # Remove None values from update_data
+        filtered_data = {k: v for k, v in update_data.items() if v is not None}
+        
+        if not filtered_data:
+            # Return current user if no data to update
+            return await get_user_by_mongodb_id(db, user_id)
+        
+        result = await db.user.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": filtered_data}
+        )
+        
+        if result.modified_count > 0:
+            return await get_user_by_mongodb_id(db, user_id)
+        else:
+            return await get_user_by_mongodb_id(db, user_id)  # Return current user even if no changes
+            
+    except Exception as e:
+        print(f"Error updating user: {e}")
         return None
-    
-    # Add updated timestamp
-    update_data["updatedAt"] = datetime.utcnow()
-    
-    result = db.users.find_one_and_update(
-        {"_id": obj_id},
-        {"$set": update_data},
-        return_document=True
-    )
-    
-    if result:
-        return UserInDB(**result)
-    return None

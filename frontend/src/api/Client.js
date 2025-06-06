@@ -244,6 +244,34 @@ export const userApi = {
   },
 };
 
+// 🔧 USER CONFIG METHODS - Add these after the existing userApi section
+export const userConfigApi = {
+  // Get user API configuration
+  async getConfig() {
+    return apiClient.get('/api/user-config/');
+  },
+
+  // Save Alpaca configuration
+  async saveAlpacaConfig(configData) {
+    return apiClient.post('/api/user-config/alpaca', configData);
+  },
+
+  // Save Polygon configuration
+  async savePolygonConfig(configData) {
+    return apiClient.post('/api/user-config/polygon', configData);
+  },
+
+  // Delete Alpaca configuration
+  async deleteAlpacaConfig() {
+    return apiClient.delete('/api/user-config/alpaca');
+  },
+
+  // Delete Polygon configuration
+  async deletePolygonConfig() {
+    return apiClient.delete('/api/user-config/polygon');
+  },
+};
+
 // 📈 STRATEGY METHODS
 export const strategyApi = {
   // Get all user's strategies

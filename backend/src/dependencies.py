@@ -12,14 +12,16 @@ load_dotenv(dotenv_path=env_path)
 
 from pymongo import MongoClient
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from motor.motor_asyncio import AsyncIOMotorDatabase
 from jose import JWTError, jwt
-from typing import Optional
+from typing import Optional, AsyncGenerator
 import logging
 
 # Ensure correct relative imports based on your project structure
-from .models.user import UserInDB
-from pymongo.database import Database
+from models.user import UserInDB
+from database.client import db_client
+from crud.user import get_user_by_mongodb_id
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,7 +29,13 @@ logger = logging.getLogger(__name__)
 
 # MongoDB connection globals - initialized in startup
 client: Optional[MongoClient] = None
-db_instance: Optional[Database] = None
+
+# JWT Configuration
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key")
+ALGORITHM = "HS256"
+
+# Security
+security = HTTPBearer()
 
 def get_mongo_url():
     """Get MongoDB connection URL based on environment"""
@@ -48,7 +56,7 @@ def get_mongo_url():
 
 async def connect_to_mongo():
     """Initialize MongoDB connection - called during startup"""
-    global client, db_instance
+    global client
     
     try:
         mongo_url = get_mongo_url()
@@ -57,9 +65,6 @@ async def connect_to_mongo():
         # Test the connection
         client.admin.command('ping')
         logger.info("Successfully connected to MongoDB")
-        
-        db_name = os.getenv("MONGO_DB_NAME", "bot_club_db")
-        db_instance = client[db_name]
         
     except Exception as e:
         logger.error(f"Failed to connect to MongoDB: {e}")
@@ -72,51 +77,23 @@ async def close_mongo_connection():
         client.close()
         logger.info("MongoDB connection closed")
 
-def get_db():
+async def get_db() -> AsyncGenerator[AsyncIOMotorDatabase, None]:
     """Dependency to get database instance"""
-    global db_instance
-    
-    if db_instance is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database not initialized"
-        )
-    
     try:
-        yield db_instance
-    except HTTPException:
-        # Re-raise HTTPExceptions (like 401, 404, etc.) without modification
-        raise
+        db = await db_client.connect()
+        yield db
     except Exception as e:
-        logger.error(f"Database error in get_db: {e}", exc_info=True)
+        logger.error(f"Database error in get_db: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database connection error"
         )
 
-# --- Authentication ---
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
-
-# Use our backend JWT secret, not Supabase JWT secret for our own tokens
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
-ALGORITHM = "HS256"
-
-if not JWT_SECRET_KEY:
-    logger.critical("JWT_SECRET_KEY environment variable is not set. Authentication will fail.")
-    # In production, you might want to raise an exception here to prevent startup
-
 async def get_current_user_from_token(
-    token: str = Depends(oauth2_scheme),
-    db: Database = Depends(get_db)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> UserInDB:
-    """Extract and validate user from JWT token"""
-    
-    if not JWT_SECRET_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="JWT Secret not configured on the server. Cannot authenticate.",
-        )
-
+    """Get current user from JWT token"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -124,29 +101,17 @@ async def get_current_user_from_token(
     )
     
     try:
-        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: Optional[str] = payload.get("sub")
+        # Decode JWT token
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
-
-    except JWTError as e:
-        logger.warning(f"JWT decode error: {e}")
-        raise credentials_exception from e
-
-    try:
-        # Import the correct function
-        from .crud.user import get_user_by_mongodb_id
-        user = await get_user_by_mongodb_id(db, user_id)
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User profile not found. Please complete registration or contact support."
-            )
-        return user
-        
-    except Exception as e:
-        logger.error(f"Error fetching user: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error retrieving user information"
-        )
+    except JWTError:
+        raise credentials_exception
+    
+    # Get user from database
+    user = await get_user_by_mongodb_id(db, user_id)
+    if user is None:
+        raise credentials_exception
+    
+    return user

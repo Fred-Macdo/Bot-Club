@@ -1,50 +1,62 @@
-import os
-from pymongo import MongoClient
-from pymongo.database import Database
-import logging
+from motor.motor_asyncio import AsyncIOMotorClient
+from motor.motor_asyncio import AsyncIOMotorDatabase
 from dotenv import load_dotenv
 from pathlib import Path
+import os
 
 # Load environment variables from .env file in backend directory
 env_path = Path(__file__).parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# MongoDB connection
-def get_mongo_url():
-    """Get MongoDB connection URL based on environment"""
-    local = os.getenv("LOCAL_DB", "false").lower() == "true"
-    
-    if local:
-        return os.getenv("MONGO_URL", "mongodb://localhost:27017/")
-    else:
-        # For MongoDB Atlas
-        username = os.getenv("MONGO_USERNAME", "fred-bot-club")
-        password = os.getenv("MONGO_PASSWORD")  # This should be set in environment
-        cluster = os.getenv("MONGO_CLUSTER", "bot-club-cluster.b9yda9w.mongodb.net")
+class DatabaseClient:
+    def __init__(self):
+        self.client = None
+        self.database = None
         
-        if not password:
-            raise ValueError("MONGO_PASSWORD environment variable is required for Atlas connection")
+    async def connect(self) -> AsyncIOMotorDatabase:
+        """Connect to MongoDB using Motor (async)"""
+        try:
+            # Check if we should use local MongoDB
+            use_local = os.getenv('LOCAL_DB', 'true').lower() == 'true'
             
-        return f"mongodb+srv://{username}:{password}@{cluster}/?retryWrites=true&w=majority&appName=bot-club-cluster"
-
-# Initialize MongoDB connection
-try:
-    mongo_url = get_mongo_url()
-    client = MongoClient(mongo_url)
+            if use_local:
+                # Use local MongoDB
+                mongo_url = os.getenv('MONGO_URL', 'mongodb://localhost:27017/bot_club_db')
+                print(f"Connecting to local MongoDB: {mongo_url}")
+                self.client = AsyncIOMotorClient(mongo_url)
+            else:
+                # Use MongoDB Atlas
+                connection_string = os.getenv('MONGO_CONNECTION_STRING')
+                if not connection_string:
+                    # Build connection string from components
+                    username = os.getenv('MONGO_USERNAME')
+                    password = os.getenv('MONGO_PASSWORD')
+                    cluster = os.getenv('MONGO_CLUSTER')
+                    connection_string = f"mongodb+srv://{username}:{password}@{cluster}/"
+                
+                print(f"Connecting to MongoDB Atlas")
+                self.client = AsyncIOMotorClient(connection_string)
+            
+            # Get database name
+            db_name = os.getenv('MONGO_DB_NAME', 'bot_club_db')
+            self.database = self.client[db_name]
+            
+            # Test the connection
+            await self.client.admin.command('ping')
+            print(f"Successfully connected to MongoDB database: {db_name}")
+            
+            return self.database
+            
+        except Exception as e:
+            print(f"Failed to connect to MongoDB: {e}")
+            raise
     
-    # Test the connection
-    client.admin.command('ping')
-    logger.info("Successfully connected to MongoDB Atlas")
-    
-except Exception as e:
-    logger.error(f"Failed to connect to MongoDB: {e}")
-    raise
+    async def disconnect(self):
+        """Disconnect from MongoDB"""
+        if self.client:
+            self.client.close()
+            print("Disconnected from MongoDB")
 
-db_name = os.getenv("MONGO_DB_NAME", "bot_club_db")
-db_instance: Database = client[db_name]
+# Global database client instance
+db_client = DatabaseClient()
 
-    

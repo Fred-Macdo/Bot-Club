@@ -9,7 +9,7 @@ import {
   useTheme 
 } from '@mui/material';
 //import { useAuth } from '../auth/AuthContext';
-import AlpacaConfigForm from './ApiConfigForm';
+import ApiConfigForm from './ApiConfigForm';
 import ProfileSettings from './ProfileSettingsForm';
 
 const AccountSettings = () => {
@@ -66,7 +66,7 @@ const AccountSettings = () => {
                 Configure your API credentials for Alpaca and Polygon APIs. 
                 These credentials are used to connect to the Alpaca API for paper trading and live trading and for getting backtest data from Polygon.
               </Typography>
-              <AlpacaConfigForm />
+              <ApiConfigForm />
             </Box>
           )}
           

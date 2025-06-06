@@ -1,55 +1,73 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Box, 
-  TextField, 
-  Button, 
-  FormControlLabel, 
-  Switch, 
-  CircularProgress, 
-  Alert, 
-  Grid, 
+import {
+  Box,
   Typography,
-  Paper,
-  Fade,
-  Divider,
+  TextField,
+  Button,
+  Grid,
+  Switch,
+  FormControlLabel,
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  IconButton
+  Alert,
+  CircularProgress,
+  Fade,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Chip
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import DeleteIcon from '@mui/icons-material/Delete';
-import TestIcon from '@mui/icons-material/Speed';
-import SaveIcon from '@mui/icons-material/Save';
-import { createApiInstance } from '../../utils/apiConfig';
+import {
+  ExpandMore as ExpandMoreIcon,
+  Save as SaveIcon,
+  Delete as DeleteIcon,
+  Api as TestIcon
+} from '@mui/icons-material';
+import { userConfigApi } from '../../api/Client';
+import { testAlpacaConnection, testPolygonConnection } from '../../utils/apiTesting';
 
 const ApiConfigForm = () => {
-  const [alpacaConfig, setAlpacaConfig] = useState({
+  // Separate configurations for paper and live accounts
+  const [paperConfig, setPaperConfig] = useState({
     apiKey: '',
     apiSecret: '',
-    endpoint: 'https://paper-api.alpaca.markets/v2',
-    isPaper: true
+    endpoint: 'https://paper-api.alpaca.markets/v2'
   });
 
-  const [polygonConfig, setPolygonConfig] = useState({
+  const [liveConfig, setLiveConfig] = useState({
     apiKey: '',
-    apiSecret: ''
+    apiSecret: '',
+    endpoint: 'https://api.alpaca.markets/v2'
+  });
+
+  const [isPaperMode, setIsPaperMode] = useState(true);
+
+  // Current active config (computed based on isPaperMode)
+  const currentConfig = isPaperMode ? paperConfig : liveConfig;
+
+  const [polygonConfig, setPolygonConfig] = useState({
+    apiKeyName: '',
+    apiKey: ''
   });
 
   const [loading, setLoading] = useState({
+    fetch: false,
     alpaca: false,
     polygon: false,
-    fetch: false
-  });
-
-  const [testing, setTesting] = useState({
-    alpaca: false,
-    polygon: false
+    testAlpaca: false,
+    testPolygon: false
   });
 
   const [status, setStatus] = useState({
     alpaca: null,
-    polygon: null
+    polygon: null,
+    testAlpaca: null,
+    testPolygon: null
   });
 
   const [errors, setErrors] = useState({
@@ -58,7 +76,12 @@ const ApiConfigForm = () => {
   });
 
   const [expanded, setExpanded] = useState({
-    alpaca: true,
+    alpaca: false,
+    polygon: false
+  });
+
+  const [testing, setTesting] = useState({
+    alpaca: false,
     polygon: false
   });
 
@@ -71,24 +94,42 @@ const ApiConfigForm = () => {
     setLoading(prev => ({ ...prev, fetch: true }));
     
     try {
-      const api = createApiInstance();
-      const response = await api.get('/api/user-config');
+      const response = await userConfigApi.getConfig();
       
-      if (response.data) {
-        const { alpaca_api_key, alpaca_secret_key, polygon_api_key, polygon_secret_key } = response.data;
+      if (response) {
+        const { 
+          alpaca_paper_api_key,
+          alpaca_paper_secret_key,
+          alpaca_paper_endpoint,
+          alpaca_live_api_key,
+          alpaca_live_secret_key,
+          alpaca_live_endpoint,
+          polygon_api_key_name,
+          polygon_secret_key 
+        } = response;
         
-        if (alpaca_api_key) {
-          setAlpacaConfig(prev => ({
-            ...prev,
-            apiKey: alpaca_api_key,
-            apiSecret: alpaca_secret_key || ''
-          }));
+        // Load paper config
+        if (alpaca_paper_api_key) {
+          setPaperConfig({
+            apiKey: alpaca_paper_api_key,
+            apiSecret: alpaca_paper_secret_key || '',
+            endpoint: alpaca_paper_endpoint || 'https://paper-api.alpaca.markets/v2'
+          });
         }
 
-        if (polygon_api_key) {
+        // Load live config
+        if (alpaca_live_api_key) {
+          setLiveConfig({
+            apiKey: alpaca_live_api_key,
+            apiSecret: alpaca_live_secret_key || '',
+            endpoint: alpaca_live_endpoint || 'https://api.alpaca.markets/v2'
+          });
+        }
+
+        if (polygon_api_key_name) {
           setPolygonConfig({
-            apiKey: polygon_api_key,
-            apiSecret: polygon_secret_key || ''
+            apiKeyName: polygon_api_key_name,
+            apiKey: polygon_secret_key || ''
           });
         }
       }
@@ -105,10 +146,12 @@ const ApiConfigForm = () => {
 
   const handleAlpacaChange = (e) => {
     const { name, value } = e.target;
-    setAlpacaConfig(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    if (isPaperMode) {
+      setPaperConfig(prev => ({ ...prev, [name]: value }));
+    } else {
+      setLiveConfig(prev => ({ ...prev, [name]: value }));
+    }
     
     // Clear error for this field
     if (errors.alpaca[name]) {
@@ -136,30 +179,24 @@ const ApiConfigForm = () => {
   };
 
   const handleAlpacaSwitchChange = () => {
-    const newIsPaper = !alpacaConfig.isPaper;
-    setAlpacaConfig(prev => ({
-      ...prev,
-      isPaper: newIsPaper,
-      endpoint: newIsPaper 
-        ? 'https://paper-api.alpaca.markets/v2' 
-        : 'https://api.alpaca.markets/v2'
-    }));
+    setIsPaperMode(prev => !prev);
   };
 
   const validateAlpacaForm = () => {
     const newErrors = {};
+    const config = currentConfig;
     
-    if (!alpacaConfig.apiKey.trim()) {
+    if (!config.apiKey.trim()) {
       newErrors.apiKey = 'Alpaca API Key is required';
     }
     
-    if (!alpacaConfig.apiSecret.trim()) {
+    if (!config.apiSecret.trim()) {
       newErrors.apiSecret = 'Alpaca API Secret is required';
     }
     
-    if (!alpacaConfig.endpoint.trim()) {
+    if (!config.endpoint.trim()) {
       newErrors.endpoint = 'API Endpoint is required';
-    } else if (!alpacaConfig.endpoint.startsWith('https://')) {
+    } else if (!config.endpoint.startsWith('https://')) {
       newErrors.endpoint = 'Must be a valid HTTPS URL';
     }
     
@@ -170,6 +207,10 @@ const ApiConfigForm = () => {
   const validatePolygonForm = () => {
     const newErrors = {};
     
+    if (!polygonConfig.apiKeyName.trim()) {
+      newErrors.apiKeyName = 'Polygon API Key Name is required';
+    }
+    
     if (!polygonConfig.apiKey.trim()) {
       newErrors.apiKey = 'Polygon API Key is required';
     }
@@ -178,90 +219,97 @@ const ApiConfigForm = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const testAlpacaConnection = async () => {
+  const testAlpacaAPI = async () => {
     if (!validateAlpacaForm()) return;
     
     setTesting(prev => ({ ...prev, alpaca: true }));
-    setStatus(prev => ({ ...prev, alpaca: null }));
+    setLoading(prev => ({ ...prev, testAlpaca: true }));
+    setStatus(prev => ({ ...prev, testAlpaca: null }));
     
     try {
-      const api = createApiInstance();
-      const response = await api.post('/api/user-config/test-alpaca', {
-        apiKey: alpacaConfig.apiKey,
-        apiSecret: alpacaConfig.apiSecret,
-        endpoint: alpacaConfig.endpoint
-      });
+      const result = await testAlpacaConnection(
+        currentConfig.apiKey,
+        currentConfig.apiSecret,
+        currentConfig.endpoint
+      );
       
-      if (response.data.success) {
+      if (result.success) {
+        const accountStatus = result.data?.status || 'Unknown';
+        const cryptoStatus = result.data?.crypto_status || 'Unknown';
+        const accountNumber = result.data?.account_number || 'Unknown';
+        
+        const isActive = accountStatus.toLowerCase() === 'active';
+        
         setStatus(prev => ({
           ...prev,
-          alpaca: {
+          testAlpaca: {
             type: 'success',
-            message: `Alpaca connection successful! Account: ${response.data.account_info?.account_number || 'N/A'}`
+            message: `Connection successful! Account Status: ${isActive ? 'Active' : 'Inactive'}`,
+            details: result.data
           }
         }));
       } else {
         setStatus(prev => ({
           ...prev,
-          alpaca: {
+          testAlpaca: {
             type: 'error',
-            message: response.data.error || 'Failed to connect to Alpaca API'
+            message: result.error
           }
         }));
       }
     } catch (error) {
       setStatus(prev => ({
         ...prev,
-        alpaca: {
+        testAlpaca: {
           type: 'error',
-          message: error.response?.data?.message || 'Error testing Alpaca connection'
+          message: `Test failed: ${error.message}`
         }
       }));
     } finally {
       setTesting(prev => ({ ...prev, alpaca: false }));
+      setLoading(prev => ({ ...prev, testAlpaca: false }));
     }
   };
 
-  const testPolygonConnection = async () => {
+  const testPolygonAPI = async () => {
     if (!validatePolygonForm()) return;
     
     setTesting(prev => ({ ...prev, polygon: true }));
-    setStatus(prev => ({ ...prev, polygon: null }));
+    setLoading(prev => ({ ...prev, testPolygon: true }));
+    setStatus(prev => ({ ...prev, testPolygon: null }));
     
     try {
-      const api = createApiInstance();
-      const response = await api.post('/api/user-config/test-polygon', {
-        apiKey: polygonConfig.apiKey,
-        apiSecret: polygonConfig.apiSecret
-      });
+      const result = await testPolygonConnection(polygonConfig.apiKey);
       
-      if (response.data.success) {
+      if (result.success) {
         setStatus(prev => ({
           ...prev,
-          polygon: {
+          testPolygon: {
             type: 'success',
-            message: 'Polygon connection successful!'
+            message: result.message,
+            details: result.data
           }
         }));
       } else {
         setStatus(prev => ({
           ...prev,
-          polygon: {
+          testPolygon: {
             type: 'error',
-            message: response.data.error || 'Failed to connect to Polygon API'
+            message: result.error
           }
         }));
       }
     } catch (error) {
       setStatus(prev => ({
         ...prev,
-        polygon: {
+        testPolygon: {
           type: 'error',
-          message: error.response?.data?.message || 'Error testing Polygon connection'
+          message: `Test failed: ${error.message}`
         }
       }));
     } finally {
       setTesting(prev => ({ ...prev, polygon: false }));
+      setLoading(prev => ({ ...prev, testPolygon: false }));
     }
   };
 
@@ -272,19 +320,23 @@ const ApiConfigForm = () => {
     setStatus(prev => ({ ...prev, alpaca: null }));
     
     try {
-      const api = createApiInstance();
-      const response = await api.post('/api/user-config/alpaca', {
-        alpaca_api_key: alpacaConfig.apiKey,
-        alpaca_secret_key: alpacaConfig.apiSecret,
-        alpaca_endpoint: alpacaConfig.endpoint,
-        alpaca_is_paper: alpacaConfig.isPaper
-      });
+      const configData = isPaperMode ? {
+        alpaca_paper_api_key: currentConfig.apiKey,
+        alpaca_paper_secret_key: currentConfig.apiSecret,
+        alpaca_paper_endpoint: currentConfig.endpoint
+      } : {
+        alpaca_live_api_key: currentConfig.apiKey,
+        alpaca_live_secret_key: currentConfig.apiSecret,
+        alpaca_live_endpoint: currentConfig.endpoint
+      };
+
+      const response = await userConfigApi.saveAlpacaConfig(configData);
       
       setStatus(prev => ({
         ...prev,
         alpaca: {
           type: 'success',
-          message: 'Alpaca configuration saved successfully!'
+          message: `Alpaca ${isPaperMode ? 'Paper' : 'Live'} configuration saved successfully!`
         }
       }));
     } catch (error) {
@@ -292,7 +344,7 @@ const ApiConfigForm = () => {
         ...prev,
         alpaca: {
           type: 'error',
-          message: error.response?.data?.message || 'Failed to save Alpaca configuration'
+          message: error.message || `Failed to save Alpaca ${isPaperMode ? 'Paper' : 'Live'} configuration`
         }
       }));
     } finally {
@@ -307,10 +359,9 @@ const ApiConfigForm = () => {
     setStatus(prev => ({ ...prev, polygon: null }));
     
     try {
-      const api = createApiInstance();
-      const response = await api.post('/api/user-config/polygon', {
-        polygon_api_key: polygonConfig.apiKey,
-        polygon_secret_key: polygonConfig.apiSecret
+      const response = await userConfigApi.savePolygonConfig({
+        polygon_api_key_name: polygonConfig.apiKeyName,
+        polygon_secret_key: polygonConfig.apiKey
       });
       
       setStatus(prev => ({
@@ -325,7 +376,7 @@ const ApiConfigForm = () => {
         ...prev,
         polygon: {
           type: 'error',
-          message: error.response?.data?.message || 'Failed to save Polygon configuration'
+          message: error.message || 'Failed to save Polygon configuration'
         }
       }));
     } finally {
@@ -337,21 +388,27 @@ const ApiConfigForm = () => {
     setLoading(prev => ({ ...prev, alpaca: true }));
     
     try {
-      const api = createApiInstance();
-      await api.delete('/api/user-config/alpaca');
+      await userConfigApi.deleteAlpacaConfig();
       
-      setAlpacaConfig({
-        apiKey: '',
-        apiSecret: '',
-        endpoint: 'https://paper-api.alpaca.markets/v2',
-        isPaper: true
-      });
+      if (isPaperMode) {
+        setPaperConfig({
+          apiKey: '',
+          apiSecret: '',
+          endpoint: 'https://paper-api.alpaca.markets/v2'
+        });
+      } else {
+        setLiveConfig({
+          apiKey: '',
+          apiSecret: '',
+          endpoint: 'https://api.alpaca.markets/v2'
+        });
+      }
       
       setStatus(prev => ({
         ...prev,
         alpaca: {
           type: 'success',
-          message: 'Alpaca configuration deleted successfully!'
+          message: `Alpaca ${isPaperMode ? 'Paper' : 'Live'} configuration deleted successfully!`
         }
       }));
     } catch (error) {
@@ -359,7 +416,7 @@ const ApiConfigForm = () => {
         ...prev,
         alpaca: {
           type: 'error',
-          message: 'Failed to delete Alpaca configuration'
+          message: `Failed to delete Alpaca ${isPaperMode ? 'Paper' : 'Live'} configuration`
         }
       }));
     } finally {
@@ -371,12 +428,11 @@ const ApiConfigForm = () => {
     setLoading(prev => ({ ...prev, polygon: true }));
     
     try {
-      const api = createApiInstance();
-      await api.delete('/api/user-config/polygon');
+      await userConfigApi.deletePolygonConfig();
       
       setPolygonConfig({
-        apiKey: '',
-        apiSecret: ''
+        apiKeyName: '',
+        apiKey: ''
       });
       
       setStatus(prev => ({
@@ -406,6 +462,47 @@ const ApiConfigForm = () => {
     }));
   };
 
+  // Create table data for configured accounts
+  const getConfiguredAccounts = () => {
+    const accounts = [];
+    
+    // Paper Trading Account
+    if (paperConfig.apiKey) {
+      accounts.push({
+        type: 'Paper Trading',
+        status: 'Configured',
+        endpoint: paperConfig.endpoint,
+        apiKey: paperConfig.apiKey.substring(0, 8) + '...'
+      });
+    } else {
+      accounts.push({
+        type: 'Paper Trading',
+        status: 'Not Configured',
+        endpoint: 'https://paper-api.alpaca.markets/v2',
+        apiKey: '—'
+      });
+    }
+    
+    // Live Trading Account
+    if (liveConfig.apiKey) {
+      accounts.push({
+        type: 'Live Trading',
+        status: 'Configured',
+        endpoint: liveConfig.endpoint,
+        apiKey: liveConfig.apiKey.substring(0, 8) + '...'
+      });
+    } else {
+      accounts.push({
+        type: 'Live Trading',
+        status: 'Not Configured',
+        endpoint: 'https://api.alpaca.markets/v2',
+        apiKey: '—'
+      });
+    }
+    
+    return accounts;
+  };
+
   if (loading.fetch) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
@@ -417,9 +514,6 @@ const ApiConfigForm = () => {
 
   return (
     <Box sx={{ mt: 2 }}>
-      <Typography variant="h5" gutterBottom>
-        API Configuration
-      </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Configure your trading and data provider API credentials. All credentials are securely encrypted.
       </Typography>
@@ -433,7 +527,7 @@ const ApiConfigForm = () => {
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
             Alpaca Trading API
-            {alpacaConfig.apiKey && (
+            {(paperConfig.apiKey || liveConfig.apiKey) && (
               <Typography variant="body2" color="success.main" sx={{ ml: 2 }}>
                 ✓ Configured
               </Typography>
@@ -441,13 +535,86 @@ const ApiConfigForm = () => {
           </Typography>
         </AccordionSummary>
         <AccordionDetails>
+          {/* Account Configuration Table */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" sx={{ mb: 2 }}>
+              Account Status
+            </Typography>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Account Type</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Endpoint</TableCell>
+                    <TableCell>API Key</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {getConfiguredAccounts().map((account, index) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        <Chip 
+                          label={account.type} 
+                          color={account.type === 'Paper Trading' ? 'primary' : 'secondary'}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={account.status} 
+                          color={account.status === 'Configured' ? 'success' : 'default'} 
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell sx={{ fontSize: '0.875rem' }}>
+                        {account.endpoint}
+                      </TableCell>
+                      <TableCell sx={{ fontFamily: 'monospace' }}>
+                        {account.apiKey}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+
+          {/* Current Configuration Form */}
+          <Box sx={{ mb: 2 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={isPaperMode}
+                  onChange={handleAlpacaSwitchChange}
+                  name="isPaper"
+                  color="primary"
+                  disabled={loading.alpaca || testing.alpaca}
+                />
+              }
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Typography>
+                    {isPaperMode ? 'Paper Trading' : 'Live Trading'}
+                  </Typography>
+                  <Chip 
+                    label={isPaperMode ? 'Paper' : 'Live'} 
+                    color={isPaperMode ? 'primary' : 'secondary'}
+                    size="small"
+                    sx={{ ml: 1 }}
+                  />
+                </Box>
+              }
+            />
+          </Box>
+
           <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
                 label="API Key"
                 name="apiKey"
-                value={alpacaConfig.apiKey}
+                value={currentConfig.apiKey}
                 onChange={handleAlpacaChange}
                 margin="normal"
                 variant="outlined"
@@ -461,7 +628,7 @@ const ApiConfigForm = () => {
                 fullWidth
                 label="API Secret"
                 name="apiSecret"
-                value={alpacaConfig.apiSecret}
+                value={currentConfig.apiSecret}
                 onChange={handleAlpacaChange}
                 margin="normal"
                 variant="outlined"
@@ -471,32 +638,18 @@ const ApiConfigForm = () => {
                 disabled={loading.alpaca || testing.alpaca}
               />
             </Grid>
-            <Grid item xs={12} md={8}>
+            <Grid item xs={12}>
               <TextField
                 fullWidth
                 label="API Endpoint"
                 name="endpoint"
-                value={alpacaConfig.endpoint}
+                value={currentConfig.endpoint}
                 onChange={handleAlpacaChange}
                 margin="normal"
                 variant="outlined"
                 error={!!errors.alpaca.endpoint}
                 helperText={errors.alpaca.endpoint || "API endpoint URL"}
                 disabled={loading.alpaca || testing.alpaca}
-              />
-            </Grid>
-            <Grid item xs={12} md={4} sx={{ display: 'flex', alignItems: 'center' }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={alpacaConfig.isPaper}
-                    onChange={handleAlpacaSwitchChange}
-                    name="isPaper"
-                    color="primary"
-                    disabled={loading.alpaca || testing.alpaca}
-                  />
-                }
-                label="Paper Trading"
               />
             </Grid>
           </Grid>
@@ -509,10 +662,28 @@ const ApiConfigForm = () => {
             </Fade>
           )}
 
+          {status.testAlpaca && (
+            <Fade in={!!status.testAlpaca}>
+              <Alert severity={status.testAlpaca.type} sx={{ mt: 2 }}>
+                {status.testAlpaca.message}
+                {status.testAlpaca.details?.crypto_status && (
+                  <div style={{ marginTop: '8px' }}>
+                    <strong>Crypto Status:</strong> {status.testAlpaca.details.crypto_status}
+                  </div>
+                )}
+                {status.testAlpaca.details?.account_number && (
+                  <div style={{ marginTop: '4px' }}>
+                    <strong>Account:</strong> {status.testAlpaca.details.account_number}
+                  </div>
+                )}
+              </Alert>
+            </Fade>
+          )}
+
           <Box sx={{ mt: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
             <Button
               variant="outlined"
-              onClick={testAlpacaConnection}
+              onClick={testAlpacaAPI}
               disabled={loading.alpaca || testing.alpaca}
               startIcon={testing.alpaca ? <CircularProgress size={16} /> : <TestIcon />}
             >
@@ -525,10 +696,10 @@ const ApiConfigForm = () => {
               disabled={loading.alpaca || testing.alpaca}
               startIcon={loading.alpaca ? <CircularProgress size={16} /> : <SaveIcon />}
             >
-              {loading.alpaca ? 'Saving...' : 'Save Configuration'}
+              {loading.alpaca ? 'Saving...' : `Save ${isPaperMode ? 'Paper' : 'Live'} Configuration`}
             </Button>
 
-            {alpacaConfig.apiKey && (
+            {currentConfig.apiKey && (
               <Button
                 variant="outlined"
                 color="error"
@@ -536,14 +707,14 @@ const ApiConfigForm = () => {
                 disabled={loading.alpaca || testing.alpaca}
                 startIcon={<DeleteIcon />}
               >
-                Delete Configuration
+                Delete {isPaperMode ? 'Paper' : 'Live'} Configuration
               </Button>
             )}
           </Box>
         </AccordionDetails>
       </Accordion>
 
-      {/* Polygon Configuration */}
+      {/* Polygon Configuration - keeping the existing implementation */}
       <Accordion 
         expanded={expanded.polygon} 
         onChange={handleAccordionChange('polygon')}
@@ -566,29 +737,29 @@ const ApiConfigForm = () => {
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
-                label="Polygon API Key"
-                name="apiKey"
-                value={polygonConfig.apiKey}
+                label="Polygon API Key Name"
+                name="apiKeyName"
+                value={polygonConfig.apiKeyName}
                 onChange={handlePolygonChange}
                 margin="normal"
                 variant="outlined"
-                error={!!errors.polygon.apiKey}
-                helperText={errors.polygon.apiKey || "Your Polygon.io API key"}
+                error={!!errors.polygon.apiKeyName}
+                helperText={errors.polygon.apiKeyName || "Your Polygon.io API key name"}
                 disabled={loading.polygon || testing.polygon}
               />
             </Grid>
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
-                label="Polygon API Secret (Optional)"
-                name="apiSecret"
-                value={polygonConfig.apiSecret}
+                label="Polygon API Key"
+                name="apiKey"
+                value={polygonConfig.apiKey}
                 onChange={handlePolygonChange}
                 margin="normal"
                 variant="outlined"
                 type="password"
-                error={!!errors.polygon.apiSecret}
-                helperText={errors.polygon.apiSecret || "Optional secret key"}
+                error={!!errors.polygon.apiKey}
+                helperText={errors.polygon.apiKey || "Required secret key"}
                 disabled={loading.polygon || testing.polygon}
               />
             </Grid>
@@ -602,10 +773,18 @@ const ApiConfigForm = () => {
             </Fade>
           )}
 
+          {status.testPolygon && (
+            <Fade in={!!status.testPolygon}>
+              <Alert severity={status.testPolygon.type} sx={{ mt: 2 }}>
+                {status.testPolygon.message}
+              </Alert>
+            </Fade>
+          )}
+
           <Box sx={{ mt: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
             <Button
               variant="outlined"
-              onClick={testPolygonConnection}
+              onClick={testPolygonAPI}
               disabled={loading.polygon || testing.polygon}
               startIcon={testing.polygon ? <CircularProgress size={16} /> : <TestIcon />}
             >

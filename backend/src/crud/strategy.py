@@ -13,8 +13,8 @@ from ..models.strategy import (
 from ..utils.mongo_helpers import PyObjectId
 
 # Strategy Collection Name
-STRATEGY_COLLECTION = "strategies"
-BACKTEST_COLLECTION = "backtest_results"
+STRATEGY_COLLECTION = "strategy"
+BACKTEST_COLLECTION = "backtest_result"
 
 async def get_strategies_by_user_id(db: AsyncIOMotorDatabase, user_id: PyObjectId) -> List[Strategy]:
     """Get all strategies for a specific user"""

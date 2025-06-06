@@ -36,7 +36,7 @@ export const testAlpacaConnection = async (config, token) => {
 export const fetchUserStrategies = async (userId) => {
   try {
     const token = getAuthToken();
-    const response = await fetch(`${BASE_URL}/api/strategies`, {
+    const response = await fetch(`${BASE_URL}/api/strategy`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -57,7 +57,7 @@ export const fetchUserStrategies = async (userId) => {
 export const saveStrategy = async (strategy, userId) => {
   try {
     const token = getAuthToken();
-    const response = await fetch(`${BASE_URL}/api/strategies`, {
+    const response = await fetch(`${BASE_URL}/api/strategy`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -81,7 +81,7 @@ export const saveStrategy = async (strategy, userId) => {
 export const updateStrategy = async (id, strategy, userId) => {
   try {
     const token = getAuthToken();
-    const response = await fetch(`${BASE_URL}/api/strategies/${id}`, {
+    const response = await fetch(`${BASE_URL}/api/strategy/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -105,7 +105,7 @@ export const updateStrategy = async (id, strategy, userId) => {
 export const deleteStrategy = async (id, userId) => {
   try {
     const token = getAuthToken();
-    const response = await fetch(`${BASE_URL}/api/strategies/${id}`, {
+    const response = await fetch(`${BASE_URL}/api/strategy/${id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`
@@ -126,7 +126,7 @@ export const deleteStrategy = async (id, userId) => {
 export const runBacktest = async (id, params, userId) => {
   try {
     const token = getAuthToken();
-    const response = await fetch(`${BASE_URL}/api/strategies/${id}/backtest`, {
+    const response = await fetch(`${BASE_URL}/api/strategy/${id}/backtest`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -150,7 +150,7 @@ export const runBacktest = async (id, params, userId) => {
 export const getBacktestResults = async (strategyId, userId) => {
   try {
     const token = getAuthToken();
-    const response = await fetch(`${BASE_URL}/api/strategies/${strategyId}/backtest`, {
+    const response = await fetch(`${BASE_URL}/api/strategy/${strategyId}/backtest`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -171,7 +171,7 @@ export const getBacktestResults = async (strategyId, userId) => {
 export const toggleLiveTrading = async (id, isActive, userId) => {
   try {
     const token = getAuthToken();
-    const response = await fetch(`${BASE_URL}/api/strategies/${id}/toggle`, {
+    const response = await fetch(`${BASE_URL}/api/strategy/${id}/toggle`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

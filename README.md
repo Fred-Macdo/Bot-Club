@@ -102,7 +102,7 @@ bot-club/
 
 ### Database
 - **MongoDB**: Document-based NoSQL database
-- **Collections**: `users`, `strategies`, `trades`, `backtests`
+- **Collections**: `user`, `strategy`, `trade`, `backtest`, `user_config`
 - **Indexes**: Optimized queries for user data and strategy lookups
 
 ## 🚀 Getting Started
