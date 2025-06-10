@@ -23,9 +23,11 @@ from ..crud.strategy import (
     save_backtest_result,
     get_backtest_results_by_strategy,
     get_backtest_result_by_id,
-    delete_backtest_results_by_strategy
+    delete_backtest_results_by_strategy,
+    get_default_strategies_from_db
 )
 from ..services.backtest import BacktestEngine
+from ..services.default_strategies import get_default_strategies
 from ..utils.mongo_helpers import PyObjectId
 
 router = APIRouter()
@@ -79,6 +81,45 @@ async def get_user_strategies(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch strategies: {str(e)}"
+        )
+
+@router.get("/default", response_model=List[StrategyCreate])
+async def get_default_strategies_endpoint(db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Get default strategies from database collection"""
+    try:
+        strategy_docs = await get_default_strategies_from_db(db)
+        
+        # Convert raw documents to StrategyCreate format for response
+        strategy_creates = []
+        for doc in strategy_docs:
+            # Create a proper config with all required fields
+            raw_config = doc.get("config", {})
+            
+            # If config is empty, construct it from document root level
+            if not raw_config or not raw_config.get("symbols"):
+                config_data = {
+                    "symbols": doc.get("symbols", ["AAPL"]),
+                    "timeframe": doc.get("timeframe", "1d"),
+                    "start_date": doc.get("start_date", "2024-01-01"),
+                    "end_date": doc.get("end_date", "2024-12-31"),
+                    "entry_conditions": doc.get("entry_conditions", []),
+                    "exit_conditions": doc.get("exit_conditions", []),
+                    "risk_management": doc.get("risk_management", {}),
+                    "indicators": doc.get("indicators", [])
+                }
+            else:
+                config_data = raw_config
+            
+            strategy_creates.append(StrategyCreate(
+                name=doc["name"],
+                description=doc.get("description", ""),
+                config=config_data
+            ))
+        return strategy_creates
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load default strategies: {str(e)}"
         )
 
 @router.get("/{strategy_id}", response_model=StrategyResponse)

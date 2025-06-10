@@ -1,4 +1,5 @@
-FastAPI
+FastAPI[standard]
+SQLAlchemy
 pymongo
 motor
 uvicorn
@@ -12,3 +13,4 @@ PyJWT
 python-jose[cryptography]
 httpx
 requests
+PyYAML

@@ -12,16 +12,21 @@ class DatabaseClient:
     def __init__(self):
         self.client = None
         self.database = None
+        self._connected = False
         
     async def connect(self) -> AsyncIOMotorDatabase:
         """Connect to MongoDB using Motor (async)"""
+        # Return existing database if already connected
+        if self._connected and self.database:
+            return self.database
+            
         try:
             # Check if we should use local MongoDB
-            use_local = os.getenv('LOCAL_DB', 'true').lower() == 'true'
+            use_local = os.getenv('LOCAL_DB', 'false').lower() == 'true'
             
             if use_local:
-                # Use local MongoDB
-                mongo_url = os.getenv('MONGO_URL', 'mongodb://localhost:27017/bot_club_db')
+                # Use local MongoDB - always use localhost when running outside Docker
+                mongo_url = 'mongodb://localhost:27017/bot_club_db'
                 print(f"Connecting to local MongoDB: {mongo_url}")
                 self.client = AsyncIOMotorClient(mongo_url)
             else:
@@ -45,10 +50,12 @@ class DatabaseClient:
             await self.client.admin.command('ping')
             print(f"Successfully connected to MongoDB database: {db_name}")
             
+            self._connected = True
             return self.database
             
         except Exception as e:
             print(f"Failed to connect to MongoDB: {e}")
+            self._connected = False
             raise
     
     async def disconnect(self):
@@ -56,6 +63,9 @@ class DatabaseClient:
         if self.client:
             self.client.close()
             print("Disconnected from MongoDB")
+        self._connected = False
+        self.client = None
+        self.database = None
 
 # Global database client instance
 db_client = DatabaseClient()

@@ -7,14 +7,42 @@ from ..models.strategy import (
     Strategy, 
     StrategyCreate, 
     StrategyUpdate, 
+    StrategyConfig,
     BacktestResult, 
     BacktestParams
 )
 from ..utils.mongo_helpers import PyObjectId
+from ..services.default_strategies import get_default_strategies
 
 # Strategy Collection Name
 STRATEGY_COLLECTION = "strategy"
 BACKTEST_COLLECTION = "backtest_result"
+
+async def create_default_strategies_for_user(db: AsyncIOMotorDatabase, user_id: PyObjectId) -> List[dict]:
+    """Create default strategies for a new user from the default_strategies collection"""
+    created_strategies = []
+    
+    # Get all default strategies from the collection
+    async for default_strategy in db["default_strategies"].find({}):
+        yaml_config = default_strategy['yaml_config']
+        
+        strategy_doc = {
+            "_id": ObjectId(),
+            "user_id": user_id,
+            "name": yaml_config['name'],
+            "description": yaml_config.get('description', ''),
+            "config": yaml_config,  # Store the entire YAML config
+            "is_active": False,
+            "is_paper": True,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        result = await db[STRATEGY_COLLECTION].insert_one(strategy_doc)
+        strategy_doc["_id"] = result.inserted_id
+        created_strategies.append(strategy_doc)
+    
+    return created_strategies
 
 async def get_strategies_by_user_id(db: AsyncIOMotorDatabase, user_id: PyObjectId) -> List[Strategy]:
     """Get all strategies for a specific user"""
@@ -149,3 +177,14 @@ async def delete_backtest_results_by_strategy(
     """Delete all backtest results for a strategy (when strategy is deleted)"""
     result = await db[BACKTEST_COLLECTION].delete_many({"strategy_id": strategy_id})
     return result.deleted_count > 0
+
+async def get_default_strategies_from_db(db: AsyncIOMotorDatabase) -> List[dict]:
+    """Get all default strategies from the default_strategies collection"""
+    strategies = []
+    cursor = db.default_strategies.find({})
+    
+    async for doc in cursor:
+        # Return raw documents for the API to convert to StrategyCreate
+        strategies.append(doc)
+    
+    return strategies

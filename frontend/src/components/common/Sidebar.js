@@ -30,10 +30,9 @@ const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut } = useAuth();
-
   const menuItems = [
     { label: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-    { label: 'Strategy Builder', icon: <SettingsIcon />, path: '/strategy-builder' },
+    { label: 'Strategy Center', icon: <SettingsIcon />, path: '/strategy-builder' },
     { label: 'Backtest', icon: <ScienceIcon />, path: '/backtest' },
     { label: 'Paper Trading', icon: <ShowChartIcon />, path: '/paper-trading' },
     { label: 'Live Trading', icon: <LiveIcon />, path: '/live-trading' },

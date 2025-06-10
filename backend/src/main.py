@@ -2,8 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from routes import auth, users, user_config
-from database.client import db_client
+from .routes import auth, users, user_config, strategies
+from .database.client import db_client
 
 
 @asynccontextmanager
@@ -49,6 +49,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(user_config.router, prefix="/api/user-config", tags=["user-config"])
+app.include_router(strategies.router, prefix="/api/strategy", tags=["strategies"])
 
 @app.get("/")
 async def root():

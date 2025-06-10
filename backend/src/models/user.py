@@ -2,7 +2,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional
 from datetime import datetime
 from bson import ObjectId
-from utils.mongo_helpers import PyObjectId
+from ..utils.mongo_helpers import PyObjectId
 
 class UserAddress(BaseModel):
     addressLine1: Optional[str] = Field(default=None, alias="line1")

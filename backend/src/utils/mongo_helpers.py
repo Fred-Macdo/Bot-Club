@@ -14,7 +14,7 @@ class PyObjectId(ObjectId):
         handler: Any
     ) -> core_schema.CoreSchema:
         """Define how to generate the core schema for PyObjectId"""
-        def validate_object_id(value: Any) -> ObjectId:
+        def validate_object_id(value: Any, validation_info=None) -> ObjectId:
             if isinstance(value, ObjectId):
                 return value
             if isinstance(value, str):

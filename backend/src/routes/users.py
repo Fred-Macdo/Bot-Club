@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pymongo.database import Database
-from dependencies import get_db, get_current_user_from_token
-from models.user import UserInDB, UserUpdate, UserProfile
-from crud.user import update_user, get_user_by_mongodb_id
+from ..dependencies import get_db, get_current_user_from_token
+from ..models.user import UserInDB, UserUpdate, UserProfile
+from ..crud.user import update_user, get_user_by_mongodb_id
 from bson import ObjectId
 
 router = APIRouter()

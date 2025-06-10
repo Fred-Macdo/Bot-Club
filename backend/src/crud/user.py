@@ -1,8 +1,8 @@
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from bson import ObjectId
 from typing import Optional
-from models.user import UserInDB, UserCreate
-from utils.security import get_password_hash
+from ..models.user import UserInDB, UserCreate
+from ..utils.security import get_password_hash
 
 async def get_user_by_mongodb_id(db: AsyncIOMotorDatabase, user_id: str) -> Optional[UserInDB]:
     """Get user by MongoDB ObjectId"""

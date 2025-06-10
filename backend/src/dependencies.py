@@ -19,9 +19,9 @@ from typing import Optional, AsyncGenerator
 import logging
 
 # Ensure correct relative imports based on your project structure
-from models.user import UserInDB
-from database.client import db_client
-from crud.user import get_user_by_mongodb_id
+from .models.user import UserInDB
+from .database.client import db_client
+from .crud.user import get_user_by_mongodb_id
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

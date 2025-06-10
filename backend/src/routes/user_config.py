@@ -4,9 +4,9 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from bson import ObjectId
 from datetime import datetime, timezone
 
-from dependencies import get_db, get_current_user_from_token
-from models.user import UserInDB
-from models.user_config import (
+from ..dependencies import get_db, get_current_user_from_token
+from ..models.user import UserInDB
+from ..models.user_config import (
     UserConfigBase,
     UserConfigCreate,
     UserConfigUpdate,
