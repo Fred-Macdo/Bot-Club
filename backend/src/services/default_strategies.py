@@ -1,93 +1,202 @@
-import os
-import yaml
-from pathlib import Path
-from typing import List
-from src.models.strategy import StrategyCreate, StrategyConfig, Condition, Indicator, RiskManagement
+# backend/services/default_strategies.py
+from typing import List, Dict, Any
+from motor.motor_asyncio import AsyncIOMotorDatabase
+from datetime import datetime
+import hashlib
+import json
 
-def load_strategy_from_yaml(yaml_path: str) -> StrategyCreate:
-    """Load a strategy from a YAML file"""
-    with open(yaml_path, 'r', encoding='utf-8') as file:
-        data = yaml.safe_load(file)
-    
-    # Parse indicators
-    indicators = []
-    for indicator_data in data.get('indicators', []):
-        indicators.append(Indicator(
-            name=indicator_data['name'],
-            params=indicator_data.get('params', {})
-        ))
-    
-    # Parse entry conditions
-    entry_conditions = []
-    for condition_data in data.get('entry_conditions', []):
-        entry_conditions.append(Condition(
-            indicator=condition_data['indicator'],
-            comparison=condition_data['comparison'],
-            value=condition_data['value']
-        ))
-    
-    # Parse exit conditions
-    exit_conditions = []
-    for condition_data in data.get('exit_conditions', []):
-        exit_conditions.append(Condition(
-            indicator=condition_data['indicator'],
-            comparison=condition_data['comparison'],
-            value=condition_data['value']
-        ))
-    
-    # Parse risk management
-    risk_mgmt_data = data.get('risk_management', {})
-    risk_management = RiskManagement(
-        position_sizing_method=risk_mgmt_data.get('position_sizing_method', 'risk_based'),
-        risk_per_trade=risk_mgmt_data.get('risk_per_trade', 0.02),
-        stop_loss=risk_mgmt_data.get('stop_loss', 0.05),
-        take_profit=risk_mgmt_data.get('take_profit', 0.10),
-        max_position_size=risk_mgmt_data.get('max_position_size', 10000.0),
-        atr_multiplier=risk_mgmt_data.get('atr_multiplier', 2.0)
-    )
-    
-    # Create strategy config
-    config = StrategyConfig(
-        symbols=data.get('symbols', []),
-        timeframe=data.get('timeframe', '1d'),
-        start_date=data.get('start_date', '2024-01-01'),
-        end_date=data.get('end_date', '2024-12-31'),
-        entry_conditions=entry_conditions,
-        exit_conditions=exit_conditions,
-        risk_management=risk_management,
-        indicators=indicators
-    )
-    
-    return StrategyCreate(
-        name=data['name'],
-        description=data.get('description', ''),
-        config=config
-    )
+# Default strategies configuration
+DEFAULT_STRATEGIES = [
+    {
+        "key": "ema_crossover_v1",  # Unique identifier for this default strategy
+        "name": "EMA Crossover Strategy",
+        "description": "Basic EMA crossover with RSI filter - a trend-following strategy",
+        "config": {
+            "symbols": ["AAPL", "MSFT", "GOOG"],
+            "timeframe": "1d",
+            "start_date": "2024-01-01",
+            "end_date": "2024-12-31",
+            "entry_conditions": [
+                {
+                    "indicator": "ema_5",
+                    "comparison": "crosses_above",
+                    "value": "ema_20"
+                }
+            ],
+            "exit_conditions": [
+                {
+                    "indicator": "ema_5",
+                    "comparison": "crosses_below",
+                    "value": "ema_20"
+                }
+            ],
+            "risk_management": {
+                "position_sizing_method": "risk_based",
+                "risk_per_trade": 0.02,
+                "stop_loss": 0.05,
+                "take_profit": 0.15,
+                "max_position_size": 10000,
+                "atr_multiplier": 2
+            },
+            "indicators": [
+                {"name": "EMA", "params": {"period": 5}},
+                {"name": "EMA", "params": {"period": 20}},
+                {"name": "RSI", "params": {"period": 14}}
+            ]
+        }
+    },
+    {
+        "key": "bollinger_bands_v1",
+        "name": "Bollinger Bands Strategy",
+        "description": "Mean reversion strategy using Bollinger Bands",
+        "config": {
+            "symbols": ["SPY", "QQQ"],
+            "timeframe": "1h",
+            "start_date": "2024-01-01",
+            "end_date": "2024-12-31",
+            "entry_conditions": [
+                {
+                    "indicator": "close",
+                    "comparison": "below",
+                    "value": "lowerband"
+                }
+            ],
+            "exit_conditions": [
+                {
+                    "indicator": "close",
+                    "comparison": "above",
+                    "value": "middleband"
+                }
+            ],
+            "risk_management": {
+                "position_sizing_method": "risk_based",
+                "risk_per_trade": 0.015,
+                "stop_loss": 0.03,
+                "take_profit": 0.06,
+                "max_position_size": 15000,
+                "atr_multiplier": 1.5
+            },
+            "indicators": [
+                {"name": "BBANDS", "params": {"period": 20, "std_dev": 2}},
+                {"name": "RSI", "params": {"period": 14}}
+            ]
+        }
+    },
+    {
+        "key": "rsi_reversal_v1",
+        "name": "RSI Reversal Strategy",
+        "description": "Momentum reversal strategy based on RSI oversold/overbought conditions",
+        "config": {
+            "symbols": ["TSLA", "NVDA", "AMD"],
+            "timeframe": "4h",
+            "start_date": "2024-01-01",
+            "end_date": "2024-12-31",
+            "entry_conditions": [
+                {
+                    "indicator": "rsi",
+                    "comparison": "below",
+                    "value": "30"
+                }
+            ],
+            "exit_conditions": [
+                {
+                    "indicator": "rsi",
+                    "comparison": "above",
+                    "value": "70"
+                }
+            ],
+            "risk_management": {
+                "position_sizing_method": "risk_based",
+                "risk_per_trade": 0.025,
+                "stop_loss": 0.04,
+                "take_profit": 0.12,
+                "max_position_size": 20000,
+                "atr_multiplier": 2.5
+            },
+            "indicators": [
+                {"name": "RSI", "params": {"period": 14}},
+                {"name": "SMA", "params": {"period": 50}}
+            ]
+        }
+    }
+]
 
-def get_default_strategies() -> List[StrategyCreate]:
-    """Get default strategies loaded from YAML files"""
+async def initialize_default_strategies(db: AsyncIOMotorDatabase) -> None:
+    """
+    Initialize default strategies in the database.
+    This function ensures that default strategies are created only once.
+    """
+    default_strategies_collection = db["default_strategies"]
+    
+    for strategy in DEFAULT_STRATEGIES:
+        # Check if this default strategy already exists using its unique key
+        existing = await default_strategies_collection.find_one({"key": strategy["key"]})
+        
+        if not existing:
+            # Strategy doesn't exist, so create it
+            await default_strategies_collection.insert_one({
+                **strategy,
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+                "version": "1.0"  # Version tracking for future updates
+            })
+            print(f"Created default strategy: {strategy['name']}")
+        else:
+            # Strategy exists, check if it needs updating (optional)
+            # You could implement version checking here if needed
+            print(f"Default strategy already exists: {strategy['name']}")
+
+async def get_default_strategies_from_db(db: AsyncIOMotorDatabase) -> List[Dict[str, Any]]:
+    """
+    Retrieve all default strategies from the database.
+    These are templates that users can view but not modify.
+    """
+    default_strategies_collection = db["default_strategies"]
     strategies = []
     
-    # Get the data directory path
-    current_dir = Path(__file__).parent.parent.parent  # Go up to backend/
-    data_dir = current_dir / 'data'
-    
-    # List of default strategy YAML files
-    strategy_files = [
-        'ema_crossover_strategy.yaml',
-        'bollinger_bands_strategy.yaml',
-        'macd_momentum_strategy.yaml'
-    ]
-    
-    for filename in strategy_files:
-        yaml_path = data_dir / filename
-        if yaml_path.exists():
-            try:
-                strategy = load_strategy_from_yaml(str(yaml_path))
-                strategies.append(strategy)
-            except Exception as e:
-                print(f"Error loading strategy from {filename}: {e}")
-        else:
-            print(f"Strategy file not found: {yaml_path}")
+    async for strategy in default_strategies_collection.find({}):
+        # Remove MongoDB-specific fields that shouldn't be exposed
+        strategy.pop("_id", None)
+        strategy.pop("key", None)  # Hide internal key from frontend
+        strategies.append(strategy)
     
     return strategies
+
+async def create_checksum_for_strategy(strategy_config: Dict[str, Any]) -> str:
+    """
+    Create a checksum for a strategy configuration to detect changes.
+    This helps in determining if a default strategy has been updated.
+    """
+    # Sort the dictionary to ensure consistent hashing
+    config_string = json.dumps(strategy_config, sort_keys=True)
+    return hashlib.sha256(config_string.encode()).hexdigest()
+
+async def update_default_strategies_if_needed(db: AsyncIOMotorDatabase) -> None:
+    """
+    Check if any default strategies need updating based on version or checksum.
+    This is useful when you update your default strategies in code.
+    """
+    default_strategies_collection = db["default_strategies"]
+    
+    for strategy in DEFAULT_STRATEGIES:
+        existing = await default_strategies_collection.find_one({"key": strategy["key"]})
+        
+        if existing:
+            # Create checksums to compare
+            existing_checksum = await create_checksum_for_strategy(existing.get("config", {}))
+            new_checksum = await create_checksum_for_strategy(strategy["config"])
+            
+            if existing_checksum != new_checksum:
+                # Strategy has changed, update it
+                await default_strategies_collection.update_one(
+                    {"key": strategy["key"]},
+                    {
+                        "$set": {
+                            **strategy,
+                            "updated_at": datetime.utcnow(),
+                            "previous_version": existing.get("version", "1.0"),
+                            "version": "1.1"  # Increment version
+                        }
+                    }
+                )
+                print(f"Updated default strategy: {strategy['name']}")

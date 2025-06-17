@@ -35,7 +35,7 @@ import Sidebar from '../common/Sidebar';
 import Button from '../common/Button';
 import { useStrategy } from '../../context/StrategyContext';
 import { useAuth } from '../router/AuthContext';
-import { fetchDefaultStrategies } from '../../api/AlpacaService';
+import { fetchDefaultStrategies } from '../../api/Client';
 
 // Transform backend strategy data to frontend format
 const transformDefaultStrategies = (backendStrategies) => {

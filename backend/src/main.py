@@ -1,27 +1,60 @@
+
+from dotenv import load_dotenv
+import os
+from pathlib import Path
+
+# Load environment variables from .env file
+# This looks for .env in the backend directory (parent of src)
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from motor.motor_asyncio import AsyncIOMotorClient
 
-from .routes import auth, users, user_config, strategies
+from .routes import auth, user, user_config, strategy
 from .database.client import db_client
 
+from .services.default_strategies import initialize_default_strategies
+
+# Global database client
+motor_client = None
+database = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Handle application startup and shutdown"""
+    """
+    Handle application startup and shutdown events.
+    This ensures proper initialization and cleanup of resources.
+    """
     # Startup
-    try:
-        await db_client.connect()
-        print("Database connected successfully")
-    except Exception as e:
-        print(f"Database connection failed: {e}")
-        raise
+    global motor_client, database
     
-    yield
+    print("Starting up application...")
+    
+    # Initialize MongoDB connection
+    motor_client = AsyncIOMotorClient(os.getenv("MONGO_URL", "mongodb://mongo:27017/"))
+    database = motor_client[os.getenv("MONGO_DB_NAME", "bot_club_db")]
+    
+    # Store database in app state for dependency injection
+    app.state.db = database
+    
+    # Initialize default strategies (only creates if they don't exist)
+    try:
+        await initialize_default_strategies(database)
+        print("Default strategies initialized successfully")
+    except Exception as e:
+        print(f"Error initializing default strategies: {e}")
+        # Don't fail startup if default strategies can't be initialized
+    
+    yield  # Application runs
     
     # Shutdown
-    await db_client.disconnect()
-    print("Database disconnected")
+    print("Shutting down application...")
+    if motor_client:
+        motor_client.close()
+
 
 # Create FastAPI app with lifespan events
 app = FastAPI(
@@ -47,14 +80,20 @@ app.add_middleware(
 
 # Include routers
 app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
-app.include_router(users.router, prefix="/api/users", tags=["users"])
+app.include_router(user.router, prefix="/api/users", tags=["users"])
 app.include_router(user_config.router, prefix="/api/user-config", tags=["user-config"])
-app.include_router(strategies.router, prefix="/api/strategy", tags=["strategies"])
+app.include_router(strategy.router, prefix="/api/strategy", tags=["strategies"])
 
 @app.get("/")
 async def root():
-    return {"message": "Bot Club API is running!"}
+    return {"message": "Trading Bot API", "status": "running"}
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    """Health check endpoint for container monitoring"""
+    try:
+        # Test database connection
+        await database.command("ping")
+        return {"status": "healthy", "database": "connected"}
+    except Exception as e:
+        return {"status": "unhealthy", "database": "disconnected", "error": str(e)}

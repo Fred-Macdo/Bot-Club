@@ -40,7 +40,7 @@ import {
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon
 } from '@mui/icons-material';
-import { saveStrategy } from '../../api/AlpacaService';
+import { saveStrategy } from '../../api/Client';
 import { useAuth } from '../router/AuthContext';
 
 const StrategyBuilderInterface = () => {
@@ -395,11 +395,11 @@ ${strategyConfig.indicators.map(indicator =>
   // Handle saving strategy
   const handleSaveStrategy = async () => {
     try {
-      const result = await saveStrategy(user.id, {
+      const result = await saveStrategy({
         name: strategyName,
         description: strategyDescription,
         config: strategyConfig
-      });
+      }, user.id); // Swapped arguments
 
       if (result.success) {
         setSaveSuccess(true);

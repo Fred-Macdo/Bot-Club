@@ -1,6 +1,7 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from bson import ObjectId
 
 from ..dependencies import get_db, get_current_user_from_token
 from ..models.user import UserInDB
@@ -27,7 +28,7 @@ from ..crud.strategy import (
     get_default_strategies_from_db
 )
 from ..services.backtest import BacktestEngine
-from ..services.default_strategies import get_default_strategies
+from ..services.default_strategies import get_default_strategies_from_db
 from ..utils.mongo_helpers import PyObjectId
 
 router = APIRouter()
@@ -68,16 +69,30 @@ def backtest_result_to_response(backtest_result: BacktestResult) -> BacktestResp
         created_at=backtest_result.created_at
     )
 
-@router.get("/", response_model=List[StrategyResponse])
+@router.get("/user_strategies", response_model=List[StrategyResponse])
 async def get_user_strategies(
     current_user: UserInDB = Depends(get_current_user_from_token),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """Get all strategies for the current user"""
     try:
-        strategies = await get_strategies_by_user_id(db, current_user.id)
-        return [strategy_to_response(strategy) for strategy in strategies]
+        print(f"DEBUG: Fetching strategies for user_id: {current_user.id}")
+        print(f"DEBUG: User email: {current_user.email}")
+        
+        if type(current_user.id) == str:
+            strategies = await get_strategies_by_user_id(db, ObjectId(current_user.id))
+        else:
+            strategies = await get_strategies_by_user_id(db, current_user.id)
+        print(f"DEBUG: Found {len(strategies)} strategies in database for user {current_user.id}")
+        for strategy in strategies:
+            print(f"DEBUG: Strategy - ID: {strategy.id}, Name: {strategy.name}, User ID: {strategy.user_id}")
+        
+        result = [strategy_to_response(strategy) for strategy in strategies]
+        print(f"DEBUG: Returning {len(result)} strategies to frontend")
+        
+        return result
     except Exception as e:
+        print(f"DEBUG: Error fetching strategies: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch strategies: {str(e)}"

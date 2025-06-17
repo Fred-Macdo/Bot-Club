@@ -17,7 +17,7 @@ class DatabaseClient:
     async def connect(self) -> AsyncIOMotorDatabase:
         """Connect to MongoDB using Motor (async)"""
         # Return existing database if already connected
-        if self._connected and self.database is not None:
+        if self._connected and self.database:
             return self.database
             
         try:

@@ -9,7 +9,7 @@ from passlib.context import CryptContext
 from ..dependencies import get_db
 from ..models.user import UserCreate, UserInDB, UserProfile, Token
 from ..crud.user import create_user, get_user_by_email, get_user_by_username
-from ..crud.strategy import create_default_strategies_for_user, get_strategies_by_user_id
+from ..crud.strategy import get_strategies_by_user_id
 from ..utils.security import verify_password, create_access_token
 
 router = APIRouter()
@@ -41,7 +41,7 @@ async def register_user(
         created_user = await create_user(db, user)
         
         # Create default strategies for the new user
-        await create_default_strategies_for_user(db, created_user.id)
+        #await create_default_strategies_for_user(db, created_user.id)
         
         return UserProfile(**created_user.model_dump())
         
@@ -60,12 +60,12 @@ async def login_for_access_token(
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """Authenticate user and return access token"""
-    try:
-        # Try to get user by username or email
+    try:        # Try to get user by username or email
         user = await get_user_by_username(db, form_data.username)
         if not user:
             user = await get_user_by_email(db, form_data.username)
-          # Verify user exists and password is correct
+        
+        # Verify user exists and password is correct
         if not user or not verify_password(form_data.password, user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -75,9 +75,7 @@ async def login_for_access_token(
         
         # Check if user has default strategies, create them if not
         existing_strategies = await get_strategies_by_user_id(db, user.id)
-        if not existing_strategies:
-            print(f"No strategies found for user {user.id}, creating default strategies...")
-            await create_default_strategies_for_user(db, user.id)
+        #await create_default_strategies_for_user(db, user.id)
         
         # Create access token
         access_token = create_access_token(data={"sub": str(user.id)})

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Union
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -12,45 +12,130 @@ from ..models.strategy import (
     BacktestParams
 )
 from ..utils.mongo_helpers import PyObjectId
-from ..services.default_strategies import get_default_strategies
+from ..services.default_strategies import get_default_strategies_from_db
 
 # Strategy Collection Name
 STRATEGY_COLLECTION = "strategy"
 BACKTEST_COLLECTION = "backtest_result"
 
-async def create_default_strategies_for_user(db: AsyncIOMotorDatabase, user_id: PyObjectId) -> List[dict]:
-    """Create default strategies for a new user from the default_strategies collection"""
-    created_strategies = []
+# backend/app/crud/strategy.py
+async def get_strategies_by_user_id(db: AsyncIOMotorDatabase, user_id: Union[str, PyObjectId]) -> List[Strategy]:
+    """Get all strategies for a specific user (match both ObjectId and str user_id fields)"""
+    print(f"DEBUG CRUD: Searching for strategies with user_id: {user_id}")
+    print(f"DEBUG CRUD: user_id type: {type(user_id)}")
     
-    # Get all default strategies from the collection
-    async for default_strategy in db["default_strategies"].find({}):
-        yaml_config = default_strategy['yaml_config']
-        
-        strategy_doc = {
-            "_id": ObjectId(),
-            "user_id": user_id,
-            "name": yaml_config['name'],
-            "description": yaml_config.get('description', ''),
-            "config": yaml_config,  # Store the entire YAML config
-            "is_active": False,
-            "is_paper": True,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
-        }
-        
-        result = await db[STRATEGY_COLLECTION].insert_one(strategy_doc)
-        strategy_doc["_id"] = result.inserted_id
-        created_strategies.append(strategy_doc)
+    strategies_collection = db.strategy
+    # Match both ObjectId and string user_id
+    user_id_str = str(user_id)
+    query = {"$or": [
+        {"user_id": user_id},
+        {"user_id": user_id_str}
+    ]}
+    cursor = strategies_collection.find(query)
     
-    return created_strategies
-
-async def get_strategies_by_user_id(db: AsyncIOMotorDatabase, user_id: PyObjectId) -> List[Strategy]:
-    """Get all strategies for a specific user"""
+    # Count total documents
+    total_count = await strategies_collection.count_documents(query)
+    print(f"DEBUG CRUD: Found {total_count} documents matching user_id (any type)")
+    
     strategies = []
-    async for strategy_data in db[STRATEGY_COLLECTION].find({"user_id": user_id}):
-        strategies.append(Strategy(**strategy_data))
+    async for strategy_doc in cursor:
+        print(f"DEBUG CRUD: Processing strategy: {strategy_doc.get('name')}")
+        print(f"DEBUG CRUD: Strategy document keys: {list(strategy_doc.keys())}")
+        
+        try:
+            # Try to create Strategy object
+            strategy = Strategy(**strategy_doc)
+            strategies.append(strategy)
+            print(f"DEBUG CRUD: Successfully parsed strategy: {strategy.name}")
+        except Exception as e:
+            print(f"DEBUG CRUD: Failed to parse strategy '{strategy_doc.get('name')}': {str(e)}")
+            print(f"DEBUG CRUD: Document structure: {strategy_doc}")
+            
+            # Try to fix common issues
+            fixed_doc = fix_strategy_document(strategy_doc)
+            if fixed_doc:
+                try:
+                    strategy = Strategy(**fixed_doc)
+                    strategies.append(strategy)
+                    print(f"DEBUG CRUD: Successfully parsed FIXED strategy: {strategy.name}")
+                except Exception as e2:
+                    print(f"DEBUG CRUD: Even fixed strategy failed: {str(e2)}")
+    
+    print(f"DEBUG CRUD: Returning {len(strategies)} successfully parsed strategies")
     return strategies
 
+def fix_strategy_document(doc: dict) -> dict:
+    """Try to fix common issues with strategy documents"""
+    try:
+        fixed_doc = doc.copy()
+        
+        # Ensure required fields exist
+        if 'config' not in fixed_doc or not fixed_doc['config']:
+            print("DEBUG CRUD: Missing or empty config, creating default")
+            fixed_doc['config'] = {
+                'symbols': ['AAPL'],
+                'timeframe': '1d',
+                'start_date': '2024-01-01',
+                'end_date': '2024-12-31',
+                'entry_conditions': [],
+                'exit_conditions': [],
+                'risk_management': {
+                    'position_sizing_method': 'risk_based',
+                    'risk_per_trade': 0.02,
+                    'stop_loss': 0.05,
+                    'take_profit': 0.10,
+                    'max_position_size': 10000.0,
+                    'atr_multiplier': 2.0
+                },
+                'indicators': []
+            }
+        
+        # Ensure config has required subfields
+        config = fixed_doc['config']
+        if 'symbols' not in config:
+            config['symbols'] = ['AAPL']
+        if 'timeframe' not in config:
+            config['timeframe'] = '1d'
+        if 'start_date' not in config:
+            config['start_date'] = '2024-01-01'
+        if 'end_date' not in config:
+            config['end_date'] = '2024-12-31'
+        if 'entry_conditions' not in config:
+            config['entry_conditions'] = []
+        if 'exit_conditions' not in config:
+            config['exit_conditions'] = []
+        if 'indicators' not in config:
+            config['indicators'] = []
+        if 'risk_management' not in config:
+            config['risk_management'] = {
+                'position_sizing_method': 'risk_based',
+                'risk_per_trade': 0.02,
+                'stop_loss': 0.05,
+                'take_profit': 0.10,
+                'max_position_size': 10000.0,
+                'atr_multiplier': 2.0
+            }
+        
+        # Ensure basic fields exist
+        if 'name' not in fixed_doc:
+            fixed_doc['name'] = 'Unnamed Strategy'
+        if 'description' not in fixed_doc:
+            fixed_doc['description'] = 'No description provided'
+        if 'is_active' not in fixed_doc:
+            fixed_doc['is_active'] = False
+        if 'is_paper' not in fixed_doc:
+            fixed_doc['is_paper'] = True
+        if 'created_at' not in fixed_doc:
+            fixed_doc['created_at'] = datetime.utcnow()
+        if 'updated_at' not in fixed_doc:
+            fixed_doc['updated_at'] = datetime.utcnow()
+            
+        return fixed_doc
+        
+    except Exception as e:
+        print(f"DEBUG CRUD: Error fixing document: {str(e)}")
+        return None
+    
 async def get_strategy_by_id(db: AsyncIOMotorDatabase, strategy_id: PyObjectId, user_id: PyObjectId) -> Optional[Strategy]:
     """Get a strategy by ID (ensuring it belongs to the user)"""
     strategy_data = await db[STRATEGY_COLLECTION].find_one({

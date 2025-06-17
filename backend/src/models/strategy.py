@@ -54,7 +54,7 @@ class BacktestResult(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Config:
-        allow_population_by_field_name = True
+        validate_by_name = True
         arbitrary_types_allowed = True
         json_encoders = {ObjectId: str}
 
@@ -72,7 +72,7 @@ class Strategy(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Config:
-        allow_population_by_field_name = True
+        validate_by_name = True
         arbitrary_types_allowed = True
         json_encoders = {ObjectId: str}
 
@@ -104,7 +104,7 @@ class StrategyResponse(BaseModel):
     updated_at: datetime = Field(..., description="Last update timestamp")
 
     class Config:
-        allow_population_by_field_name = True
+        validate_by_name = True
 
 class BacktestParams(BaseModel):
     """Parameters for running a backtest"""
@@ -133,4 +133,4 @@ class BacktestResponse(BaseModel):
     created_at: datetime = Field(..., description="Creation timestamp")
 
     class Config:
-        allow_population_by_field_name = True
+        validate_by_name = True

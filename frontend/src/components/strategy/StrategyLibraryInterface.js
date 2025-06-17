@@ -30,7 +30,7 @@ import {
 } from '@mui/icons-material';
 import { useStrategy } from '../../context/StrategyContext';
 import { useAuth } from '../router/AuthContext';
-import { fetchDefaultStrategies } from '../../api/Client';
+import { fetchDefaultStrategies, fetchUserStrategies } from '../../api/Client';
 
 // Transform backend strategy data to frontend format
 const transformDefaultStrategies = (backendStrategies) => {
@@ -119,10 +119,9 @@ const StrategyLibraryInterface = () => {
     };
 
     loadDefaultStrategies();
-    // Optionally, refresh user strategies when the component mounts or user changes
-    // if (user) {
-    //   refreshStrategies();
-    // }
+    if (user) {
+       fetchUserStrategies();
+     }
   }, []); // Removed user from dependency array to avoid loop if refreshStrategies updates user
 
   // Log userStrategies when it changes
@@ -134,67 +133,20 @@ const StrategyLibraryInterface = () => {
 
   // Combine default and user strategies
   const allStrategies = useMemo(() => {
-    // Ensure userStrategies is an array before mapping; handle loading/error states from context
-    const validUserStrategies = Array.isArray(userStrategies) ? userStrategies : [];
-    
-    const userStrategiesFormatted = validUserStrategies.map((strategy, index) => {
-      const indicators = strategy.config?.indicators?.map(ind => {
-        if (typeof ind === 'string') return ind;
-        if (ind && typeof ind.name === 'string') return ind.name;
-        return 'Unknown Indicator'; // Fallback for unexpected indicator format
-      }) || [];
-      
-      let category = 'User Defined'; // Default category for user strategies
-      if (strategy.name && typeof strategy.name === 'string') {
-        const lowerCaseName = strategy.name.toLowerCase();
-        if (lowerCaseName.includes('ema') || lowerCaseName.includes('crossover')) {
-          category = 'Trend Following';
-        } else if (lowerCaseName.includes('bollinger')) {
-          category = 'Breakout';
-        } else if (lowerCaseName.includes('macd')) {
-          category = 'Momentum';
-        } else if (lowerCaseName.includes('rsi')) {
-          category = 'Mean Reversion';
-        }
-        // Additional categorization logic can be added here
-      }
-      
-      let complexity = 'Beginner';
-      const numIndicators = indicators.length;
-      const numEntryConditions = strategy.config?.entry_conditions?.length || 0;
-      const numExitConditions = strategy.config?.exit_conditions?.length || 0;
-      const totalConditions = numEntryConditions + numExitConditions;
+    const userStrategiesFormatted = userStrategies.map(strategy => ({
+      id: strategy.id,
+      name: strategy.name,
+      description: strategy.description || 'No description provided',
+      type: 'user',
+      category: 'Custom',
+      performance: 'N/A',
+      complexity: 'Custom',
+      indicators: strategy.config?.indicators?.map(ind => ind.name) || [],
+      timeframes: strategy.config?.timeframe ? [strategy.config.timeframe] : [],
+      config: strategy.config,
+      createdAt: strategy.created_at
+    }));
 
-      if (totalConditions > 3 || numIndicators > 2) {
-        complexity = 'Advanced';
-      } else if (totalConditions > 1 || numIndicators > 1) {
-        complexity = 'Intermediate';
-      }
-      
-      return {
-        id: strategy._id || strategy.id || `user_strategy_${index}`, // Prefer _id from DB, fallback to id, or generate unique
-        name: strategy.name || 'Unnamed User Strategy',
-        description: strategy.description || 'No description provided',
-        type: 'user', // Crucial for filtering and identification
-        category, // Dynamically determined category
-        performance: 'N/A', // Placeholder; can be updated if backtest data for user strategies is available
-        complexity, // Dynamically determined complexity
-        indicators,
-        timeframes: strategy.config?.timeframe ? [String(strategy.config.timeframe).toUpperCase()] : ['1D'], // Consistent timeframe formatting
-        config: strategy.config, // Store full config for potential detailed view or execution
-        createdAt: strategy.created_at, // Timestamp from backend
-        // Include common backtesting fields, defaulting to null, checking for snake_case and camelCase
-        backtestReturn: strategy.backtest_return || strategy.backtestReturn || null,
-        sharpeRatio: strategy.sharpe_ratio || strategy.sharpeRatio || null,
-        maxDrawdown: strategy.max_drawdown || strategy.maxDrawdown || null,
-        winRate: strategy.win_rate || strategy.winRate || null,
-        totalTrades: strategy.total_trades || strategy.totalTrades || null,
-      };
-    });
-
-    // console.log('Default strategies for merging:', defaultStrategies);
-    // console.log('Formatted user strategies for merging:', userStrategiesFormatted);
-    
     return [...defaultStrategies, ...userStrategiesFormatted];
   }, [defaultStrategies, userStrategies]);
 

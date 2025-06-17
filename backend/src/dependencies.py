@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 client: Optional[MongoClient] = None
 
 # JWT Configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-this-in-production")
 ALGORITHM = "HS256"
 
 # Security
@@ -82,8 +82,10 @@ async def get_db() -> AsyncGenerator[AsyncIOMotorDatabase, None]:
     try:
         db = await db_client.connect()
         yield db
-    except Exception as e:
-        logger.error(f"Database error in get_db: {e}")
+    except HTTPException:  # Add this to let FastAPI handle its own exceptions
+        raise
+    except Exception as e: # Catch other (presumably database-related) errors
+        logger.error(f"Database connection error in get_db: {e}") # Updated log message
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database connection error"

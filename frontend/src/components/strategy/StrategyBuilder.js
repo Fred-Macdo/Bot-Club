@@ -8,8 +8,8 @@ import {
   Paper
 } from '@mui/material';
 import Sidebar from '../common/Sidebar';
-import StrategyLibraryInterface from './StrategyLibraryInterface';
-import StrategyBuilderInterface from './StrategyBuilderInterface';
+import StrategyLibraryInterface from '../strategy/StrategyLibraryInterface';
+import StrategyBuilderInterface from '../strategy/StrategyBuilderInterface';
 
 // Strategy Center Main Page - Container for Strategy Library and Builder
 const StrategyCenterPage = () => {
