@@ -1,24 +1,41 @@
-// Base API configuration and HTTP client for the Bot Club frontend
+// frontend/src/api/client.js
+// Consolidated API Client - Single source of truth for all API communications
 
 class ApiClient {
   constructor() {
-    this.baseURL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
-    this.tokenKey = 'bot_club_access_token';
+    // Check if we're running in Docker environment
+    const isDocker = process.env.REACT_APP_API_URL && process.env.REACT_APP_API_URL.includes('backend:');
+    
+    // If running in Docker, use empty string to leverage proxy
+    // Otherwise use the configured API URL or default to localhost
+    this.baseURL = isDocker ? '' : (process.env.REACT_APP_API_URL || 'http://localhost:8000');
+    this.tokenKey = 'authToken'; // Consistent token key across the application
+    
+    console.log('ApiClient initialized:', {
+      environment: process.env.NODE_ENV,
+      apiUrl: process.env.REACT_APP_API_URL,
+      isDocker,
+      baseURL: this.baseURL
+    });
   }
 
-  // Get stored token from localStorage
+  // Token management methods
   getToken() {
     return localStorage.getItem(this.tokenKey);
   }
 
-  // Save token to localStorage
   setToken(token) {
-    localStorage.setItem(this.tokenKey, token);
+    if (token) {
+      localStorage.setItem(this.tokenKey, token);
+      console.log('Token stored successfully');
+    } else {
+      console.warn('Attempted to set null/undefined token');
+    }
   }
 
-  // Remove token from localStorage
   removeToken() {
     localStorage.removeItem(this.tokenKey);
+    console.log('Token removed from storage');
   }
 
   // Check if user is authenticated
@@ -26,26 +43,28 @@ class ApiClient {
     const token = this.getToken();
     if (!token) return false;
     
-    // Check if token is expired (basic check)
     try {
+      // Decode JWT to check expiration
       const payload = JSON.parse(atob(token.split('.')[1]));
       const currentTime = Date.now() / 1000;
       return payload.exp > currentTime;
     } catch (error) {
+      console.error('Invalid token format:', error);
       return false;
     }
   }
 
-  // Base fetch method with authentication
+  // Base request method with comprehensive error handling
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     const token = this.getToken();
 
-    // Default headers
-    const headers = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    };
+    // Build headers - don't set Content-Type for FormData
+    const headers = { ...options.headers };
+    
+    if (!(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     // Add authentication header if token exists
     if (token) {
@@ -63,15 +82,38 @@ class ApiClient {
       // Handle authentication errors
       if (response.status === 401) {
         this.removeToken();
-        // Redirect to login or trigger auth error
-        window.location.href = '/login';
+        // Dispatch custom event for auth failure
+        window.dispatchEvent(new CustomEvent('auth:logout', { detail: 'Token expired' }));
         throw new Error('Authentication failed');
       }
 
       // Handle other HTTP errors
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        
+        try {
+          const errorData = await response.json();
+          
+          // Handle FastAPI validation errors (422)
+          if (response.status === 422 && errorData.detail) {
+            if (Array.isArray(errorData.detail)) {
+              errorMessage = errorData.detail
+                .map(err => {
+                  const location = err.loc ? err.loc.join('.') : 'field';
+                  return `${location}: ${err.msg}`;
+                })
+                .join(', ');
+            } else {
+              errorMessage = errorData.detail;
+            }
+          } else {
+            errorMessage = errorData.detail || errorData.message || errorMessage;
+          }
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError);
+        }
+        
+        throw new Error(errorMessage);
       }
 
       // Return JSON if response has content
@@ -82,12 +124,16 @@ class ApiClient {
       
       return response;
     } catch (error) {
-      console.error('API request failed:', error);
+      console.error('API request failed:', {
+        url,
+        method: config.method || 'GET',
+        error: error.message
+      });
       throw error;
     }
   }
 
-  // HTTP Methods
+  // HTTP method shortcuts
   async get(endpoint, options = {}) {
     return this.request(endpoint, { ...options, method: 'GET' });
   }
@@ -112,257 +158,204 @@ class ApiClient {
     return this.request(endpoint, { ...options, method: 'DELETE' });
   }
 
-  // Special method for form data (login)
+  // Special method for form data (used in login)
   async postForm(endpoint, formData, options = {}) {
     return this.request(endpoint, {
       ...options,
       method: 'POST',
-      headers: {
-        // Don't set Content-Type, let browser set it for FormData
-        ...options.headers,
-      },
       body: formData,
     });
   }
 }
 
-// Create a singleton instance
+// Create singleton instance
 const apiClient = new ApiClient();
 
-// 🔐 AUTHENTICATION METHODS
+// 🔐 AUTHENTICATION API
 export const authApi = {
-  // Login user
-  async login(email, password) {
+  async login(username, password) {
     const formData = new FormData();
-    formData.append('username', email);
+    formData.append('username', username);
     formData.append('password', password);
 
     const response = await apiClient.postForm('/api/auth/token', formData);
-    
-    // Save token to localStorage
-    if (response.access_token) {
+      // Save token automatically on successful login
+    if (response?.access_token) {
       apiClient.setToken(response.access_token);
     }
     
     return response;
   },
-
-  // Register new user
-  async register(email, password) {
-    return apiClient.post('/api/auth/register', {
-      email,
-      password,
-    });
+  
+  async register(userData) {
+    return apiClient.post('/api/auth/register', userData);
   },
 
-  // Logout user
+  async getUserProfile() {
+    return apiClient.get('/api/users/me');
+  },
+
   logout() {
     apiClient.removeToken();
-    window.location.href = '/login';
+    // Dispatch logout event for components to listen to
+    window.dispatchEvent(new CustomEvent('auth:logout', { detail: 'User logged out' }));
   },
 
-  // Sync with Supabase (if using Supabase + your backend)
-  async syncSupabaseUser(supabaseToken) {
-    const response = await apiClient.post('/api/auth/supabase-sync', {
-      supabase_token: supabaseToken,
-    });
-    
-    if (response.access_token) {
-      apiClient.setToken(response.access_token);
-    }
-    
-    return response;
-  },
-
-  // Check if user is authenticated
   isAuthenticated() {
     return apiClient.isAuthenticated();
-  },
+  }
 };
 
-// 👤 USER METHODS
+// 👤 USER API
 export const userApi = {
-  // Get current user profile
   async getProfile() {
     return apiClient.get('/api/users/me');
   },
 
-  // Update user profile
   async updateProfile(userData) {
     return apiClient.put('/api/users/me', userData);
   },
-
-  // Delete user account
-  async deleteAccount() {
-    return apiClient.delete('/api/users/me');
-  },
 };
 
-// 📈 STRATEGY METHODS
+// 📈 STRATEGY API - Comprehensive strategy management
 export const strategyApi = {
-  // Get all user's strategies
-  async getStrategies() {
-    return apiClient.get('/api/strategies');
+  // Get all strategies (user's strategies)
+  async getUserStrategies() {
+    return apiClient.get('/api/strategy/user_strategies');
+  },
+  // Get default/template strategies
+  async getDefaultStrategies() {
+    return apiClient.get('/api/strategy/default');
   },
 
   // Get single strategy by ID
   async getStrategy(strategyId) {
-    return apiClient.get(`/api/strategies/${strategyId}`);
+    return apiClient.get(`/api/strategy/${strategyId}`);
   },
 
   // Create new strategy
   async createStrategy(strategyData) {
-    return apiClient.post('/api/strategies', strategyData);
+    return apiClient.post('/api/strategy', strategyData);
   },
 
   // Update existing strategy
   async updateStrategy(strategyId, strategyData) {
-    return apiClient.put(`/api/strategies/${strategyId}`, strategyData);
+    return apiClient.put(`/api/strategy/${strategyId}`, strategyData);
   },
 
   // Delete strategy
   async deleteStrategy(strategyId) {
-    return apiClient.delete(`/api/strategies/${strategyId}`);
+    return apiClient.delete(`/api/strategy/${strategyId}`);
   },
 
-  // Backtest a strategy
-  async backtestStrategy(strategyId, backtestParams) {
-    return apiClient.post(`/api/strategies/${strategyId}/backtest`, backtestParams);
+  // Toggle strategy active/inactive status
+  async toggleStrategy(strategyId, isActive) {
+    return apiClient.post(`/api/strategy/${strategyId}/toggle`, { is_active: isActive });
   },
 
-  // Get backtest results
-  async getBacktestResults(strategyId, backtestId) {
-    return apiClient.get(`/api/strategies/${strategyId}/backtest/${backtestId}`);
+  // Backtest operations
+  async startBacktest(strategyId, params) {
+    return apiClient.post(`/api/strategy/${strategyId}/backtest`, params);
   },
 
-  // Start/stop live trading
-  async toggleLiveTrading(strategyId, isActive) {
-    return apiClient.post(`/api/strategies/${strategyId}/toggle`, { is_active: isActive });
+  async getBacktestResults(strategyId) {
+    return apiClient.get(`/api/strategy/${strategyId}/backtest`);
   },
+
+  async getBacktestResult(strategyId, backtestId) {
+    return apiClient.get(`/api/strategy/${strategyId}/backtest/${backtestId}`);
+  }
 };
 
-// 🔑 API KEYS METHODS
-export const apiKeysApi = {
-  // Get user's API keys (encrypted/masked)
-  async getApiKeys() {
-    return apiClient.get('/api/keys');
+// 🔧 USER CONFIG API
+export const userConfigApi = {
+  async getConfig() {
+    return apiClient.get('/api/user-config/');
   },
 
-  // Add new API key
-  async addApiKey(keyData) {
-    return apiClient.post('/api/keys', keyData);
+  async saveAlpacaConfig(configData) {
+    return apiClient.post('/api/user-config/alpaca', configData);
   },
 
-  // Update API key
-  async updateApiKey(keyId, keyData) {
-    return apiClient.put(`/api/keys/${keyId}`, keyData);
+  async savePolygonConfig(configData) {
+    return apiClient.post('/api/user-config/polygon', configData);
   },
 
-  // Delete API key
-  async deleteApiKey(keyId) {
-    return apiClient.delete(`/api/keys/${keyId}`);
+  async deleteAlpacaConfig() {
+    return apiClient.delete('/api/user-config/alpaca');
   },
 
-  // Test API key connection
-  async testApiKey(keyId) {
-    return apiClient.post(`/api/keys/${keyId}/test`);
-  },
+  async deletePolygonConfig() {
+    return apiClient.delete('/api/user-config/polygon');
+  }
 };
 
-// 📊 TRADING/PORTFOLIO METHODS
+// 📊 TRADING API
 export const tradingApi = {
-  // Get portfolio overview
   async getPortfolio() {
     return apiClient.get('/api/trading/portfolio');
   },
 
-  // Get trading history
   async getTradingHistory(limit = 50, offset = 0) {
     return apiClient.get(`/api/trading/history?limit=${limit}&offset=${offset}`);
   },
 
-  // Get active positions
   async getActivePositions() {
     return apiClient.get('/api/trading/positions');
   },
 
-  // Get performance metrics
   async getPerformanceMetrics(timeframe = '30d') {
     return apiClient.get(`/api/trading/performance?timeframe=${timeframe}`);
-  },
+  }
 };
 
-// 📈 MARKET DATA METHODS
+// 📈 MARKET DATA API
 export const marketApi = {
-  // Get market data for symbols
   async getMarketData(symbols, timeframe = '1d') {
     const symbolsParam = Array.isArray(symbols) ? symbols.join(',') : symbols;
     return apiClient.get(`/api/market/data?symbols=${symbolsParam}&timeframe=${timeframe}`);
   },
 
-  // Get available symbols
   async getAvailableSymbols() {
     return apiClient.get('/api/market/symbols');
   },
 
-  // Get market indicators
   async getMarketIndicators(symbol, indicators) {
     const indicatorsParam = Array.isArray(indicators) ? indicators.join(',') : indicators;
     return apiClient.get(`/api/market/indicators?symbol=${symbol}&indicators=${indicatorsParam}`);
-  },
+  }
 };
 
-// Export the main client for custom requests
+// 🔑 COMPATIBILITY LAYER - For smooth migration from APIServiceLayer.js
+// These exports maintain backward compatibility while components are migrated
+export const saveStrategy = async (strategyData, userId) => {
+  try {
+    const response = await strategyApi.createStrategy(strategyData);
+    return { success: true, strategy: response };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+export const fetchDefaultStrategies = async () => {
+  try {
+    const strategies = await strategyApi.getDefaultStrategies();
+    return { success: true, strategies };
+  } catch (error) {
+    return { success: false, error: error.message, strategies: [] };
+  }
+};
+
+export const fetchUserStrategies = async (userId) => {
+  try {
+    const strategies = await strategyApi.getUserStrategies();
+    console.log('Fetched user strategies:', strategies);
+    return { success: true, strategies };
+  } catch (error) {
+    console.log('Error fetching user strategies:', error);
+    return { success: false, error: error.message, strategies: [] };
+  }
+};
+
+// Export default client for any custom requests
 export default apiClient;
-
-// 🚀 USAGE EXAMPLES:
-
-/* 
-// In your React components:
-
-// Login
-import { authApi } from '../api/client';
-
-const handleLogin = async (email, password) => {
-  try {
-    await authApi.login(email, password);
-    navigate('/dashboard');
-  } catch (error) {
-    setError(error.message);
-  }
-};
-
-// Get user profile
-import { userApi } from '../api/client';
-
-const fetchProfile = async () => {
-  try {
-    const profile = await userApi.getProfile();
-    setUser(profile);
-  } catch (error) {
-    console.error('Failed to fetch profile:', error);
-  }
-};
-
-// Get strategies
-import { strategyApi } from '../api/client';
-
-const fetchStrategies = async () => {
-  try {
-    const strategies = await strategyApi.getStrategies();
-    setStrategies(strategies);
-  } catch (error) {
-    console.error('Failed to fetch strategies:', error);
-  }
-};
-
-// Create new strategy
-const createStrategy = async (strategyData) => {
-  try {
-    const newStrategy = await strategyApi.createStrategy(strategyData);
-    console.log('Strategy created:', newStrategy);
-  } catch (error) {
-    console.error('Failed to create strategy:', error);
-  }
-};
-*/

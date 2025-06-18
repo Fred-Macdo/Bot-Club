@@ -9,7 +9,7 @@ import {
   useTheme 
 } from '@mui/material';
 //import { useAuth } from '../auth/AuthContext';
-import AlpacaConfigForm from './AlpacaConfigForm';
+import ApiConfigForm from './ApiConfigForm';
 import ProfileSettings from './ProfileSettingsForm';
 
 const AccountSettings = () => {
@@ -45,7 +45,7 @@ const AccountSettings = () => {
           }}
         >
           <Tab label="Profile" />
-          <Tab label="Alpaca API" />
+          <Tab label="API Configuration" />
           <Tab label="Security" />
           <Tab label="Notification Preferences" />
         </Tabs>
@@ -63,9 +63,10 @@ const AccountSettings = () => {
                 API Configuration Tab
               </Typography>
               <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-                Configure your Alpaca trading account API credentials. These credentials are used to connect to the Alpaca API for paper trading and live trading.
+                Configure your API credentials for Alpaca and Polygon APIs. 
+                These credentials are used to connect to the Alpaca API for paper trading and live trading and for getting backtest data from Polygon.
               </Typography>
-              <AlpacaConfigForm />
+              <ApiConfigForm />
             </Box>
           )}
           

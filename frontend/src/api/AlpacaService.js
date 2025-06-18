@@ -1,6 +1,14 @@
 // src/api/alpacaService.js
 // This file will handle our API calls to the FastAPI backend
-const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+import { authApi } from './Client';
+
+const BASE_URL = process.env.REACT_APP_API_URL || '';
+
+// Helper function to get auth token
+const getAuthToken = () => {
+  const token = localStorage.getItem('token');
+  return token;
+};
 
 export const testAlpacaConnection = async (config, token) => {
   try {
@@ -25,120 +33,183 @@ export const testAlpacaConnection = async (config, token) => {
   }
 };
 
-export const fetchUserStrategies = async (token) => {
+// Strategy Management Functions
+export const saveStrategy = async (strategyData, userId) => {
   try {
-    const response = await fetch(`${BASE_URL}/api/strategies`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching strategies:', error);
-    return { success: false, error: 'Failed to fetch strategies' };
-  }
-};
-
-export const saveStrategy = async (strategy, token) => {
-  try {
-    const response = await fetch(`${BASE_URL}/api/strategies`, {
+    const token = getAuthToken();
+    const response = await fetch(`${BASE_URL}/api/strategy/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify(strategy)
+      body: JSON.stringify(strategyData)
     });
-    
-    return await response.json();
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to save strategy');
+    }
+
+    const result = await response.json();
+    return { success: true, strategy: result };
   } catch (error) {
     console.error('Error saving strategy:', error);
-    return { success: false, error: 'Failed to save strategy' };
+    return { success: false, error: error.message };
   }
 };
 
-export const updateStrategy = async (id, strategy, token) => {
+export const fetchUserStrategies = async (userId) => {
   try {
-    const response = await fetch(`${BASE_URL}/api/strategies/${id}`, {
+    const token = getAuthToken();
+    console.log('Fetching user strategies with token:', token ? 'Token exists' : 'No token'); // Debug log
+    
+    const response = await fetch(`${BASE_URL}/api/strategy/`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('User strategies response status:', response.status); // Debug log
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('User strategies error:', errorData); // Debug log
+      throw new Error(errorData.detail || 'Failed to fetch strategies');
+    }
+
+    const strategies = await response.json();
+    console.log('User strategies response:', strategies); // Debug log
+    return { success: true, strategies };
+  } catch (error) {
+    console.error('Error fetching strategies:', error);
+    return { success: false, error: error.message, strategies: [] };
+  }
+};
+
+export const fetchDefaultStrategies = async () => {
+  try {
+    console.log('Fetching default strategies from:', `${BASE_URL}/api/strategy/default`); // Debug log
+    
+    const response = await fetch(`${BASE_URL}/api/strategy/default`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('Default strategies response status:', response.status); // Debug log
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Default strategies error:', errorData); // Debug log
+      throw new Error(errorData.detail || 'Failed to fetch default strategies');
+    }
+
+    const strategies = await response.json();
+    console.log('Default strategies response:', strategies); // Debug log
+    return { success: true, strategies };
+  } catch (error) {
+    console.error('Error fetching default strategies:', error);
+    return { success: false, error: error.message, strategies: [] };
+  }
+};
+
+export const runBacktest = async (strategyId, backtestParams, userId) => {
+  try {
+    const token = getAuthToken();
+    const response = await fetch(`${BASE_URL}/api/strategy/${strategyId}/backtest`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(backtestParams)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to run backtest');
+    }
+
+    const result = await response.json();
+    return { success: true, result };
+  } catch (error) {
+    console.error('Error running backtest:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const updateStrategy = async (strategyId, strategyData, userId) => {
+  try {
+    const token = getAuthToken();
+    const response = await fetch(`${BASE_URL}/api/strategy/${strategyId}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify(strategy)
+      body: JSON.stringify(strategyData)
     });
-    
-    return await response.json();
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to update strategy');
+    }
+
+    const result = await response.json();
+    return { success: true, strategy: result };
   } catch (error) {
     console.error('Error updating strategy:', error);
-    return { success: false, error: 'Failed to update strategy' };
+    return { success: false, error: error.message };
   }
 };
 
-export const deleteStrategy = async (id, token) => {
+export const deleteStrategy = async (strategyId, userId) => {
   try {
-    const response = await fetch(`${BASE_URL}/api/strategies/${id}`, {
+    const token = getAuthToken();
+    const response = await fetch(`${BASE_URL}/api/strategy/${strategyId}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`
       }
     });
-    
-    return await response.json();
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to delete strategy');
+    }
+
+    return { success: true };
   } catch (error) {
     console.error('Error deleting strategy:', error);
-    return { success: false, error: 'Failed to delete strategy' };
+    return { success: false, error: error.message };
   }
 };
 
-export const runBacktest = async (id, params, token) => {
+export const toggleLiveTrading = async (id, isActive, userId) => {
   try {
-    const response = await fetch(`${BASE_URL}/api/backtest/${id}`, {
+    const token = getAuthToken();
+    const response = await fetch(`${BASE_URL}/api/strategy/${id}/toggle`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify(params)
+      body: JSON.stringify({ is_active: isActive })
     });
     
-    return await response.json();
-  } catch (error) {
-    console.error('Error running backtest:', error);
-    return { success: false, error: 'Failed to run backtest' };
-  }
-};
-
-export const startPaperTrading = async (id, token) => {
-  try {
-    const response = await fetch(`${BASE_URL}/api/paper-trading/${id}/start`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     
-    return await response.json();
+    const result = await response.json();
+    return { success: true, strategy: result };
   } catch (error) {
-    console.error('Error starting paper trading:', error);
-    return { success: false, error: 'Failed to start paper trading' };
-  }
-};
-
-export const stopPaperTrading = async (id, token) => {
-  try {
-    const response = await fetch(`${BASE_URL}/api/paper-trading/${id}/stop`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error stopping paper trading:', error);
-    return { success: false, error: 'Failed to stop paper trading' };
+    console.error('Error toggling live trading:', error);
+    return { success: false, error: 'Failed to toggle live trading' };
   }
 };
 

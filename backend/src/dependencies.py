@@ -1,27 +1,48 @@
+from dotenv import load_dotenv
 import os
+from pathlib import Path
+
+# Load environment variables from .env file
+# This looks for .env in the backend directory (parent of src)
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
+# Alternative: Load from current directory and parent directories
+# load_dotenv()
+
 from pymongo import MongoClient
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from motor.motor_asyncio import AsyncIOMotorDatabase
 from jose import JWTError, jwt
-from typing import Optional
+from typing import Optional, AsyncGenerator
 import logging
 
 # Ensure correct relative imports based on your project structure
-from .crud.user import get_user_by_supabase_id
 from .models.user import UserInDB
-from pymongo.database import Database
+from .database.client import db_client
+from .crud.user import get_user_by_mongodb_id
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# MongoDB connection
+# MongoDB connection globals - initialized in startup
+client: Optional[MongoClient] = None
+
+# JWT Configuration
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-this-in-production")
+ALGORITHM = "HS256"
+
+# Security
+security = HTTPBearer()
+
 def get_mongo_url():
     """Get MongoDB connection URL based on environment"""
     local = os.getenv("LOCAL_DB", "false").lower() == "true"
     
     if local:
-        return os.getenv("MONGO_URL", "mongodb://localhost:27017/")
+        return os.getenv("MONGO_URL", "mongodb://mongo:27017/")  # Use docker service name
     else:
         # For MongoDB Atlas
         username = os.getenv("MONGO_USERNAME", "fred-bot-club")
@@ -30,58 +51,51 @@ def get_mongo_url():
         
         if not password:
             raise ValueError("MONGO_PASSWORD environment variable is required for Atlas connection")
-            
-        return f"mongodb+srv://{username}:{password}@{cluster}/?retryWrites=true&w=majority&appName=bot-club-cluster"
+        
+        return f"mongodb+srv://{username}:{password}@{cluster}/bot_club_db?retryWrites=true&w=majority"
 
-# Initialize MongoDB connection
-try:
-    mongo_url = get_mongo_url()
-    client = MongoClient(mongo_url)
+async def connect_to_mongo():
+    """Initialize MongoDB connection - called during startup"""
+    global client
     
-    # Test the connection
-    client.admin.command('ping')
-    logger.info("Successfully connected to MongoDB Atlas")
-    
-except Exception as e:
-    logger.error(f"Failed to connect to MongoDB: {e}")
-    raise
+    try:
+        mongo_url = get_mongo_url()
+        client = MongoClient(mongo_url)
+        
+        # Test the connection
+        client.admin.command('ping')
+        logger.info("Successfully connected to MongoDB")
+        
+    except Exception as e:
+        logger.error(f"Failed to connect to MongoDB: {e}")
+        raise
 
-db_name = os.getenv("MONGO_DB_NAME", "bot_club_db")
-db_instance: Database = client[db_name]
+async def close_mongo_connection():
+    """Close MongoDB connection - called during shutdown"""
+    global client
+    if client:
+        client.close()
+        logger.info("MongoDB connection closed")
 
-def get_db() -> Database:
+async def get_db() -> AsyncGenerator[AsyncIOMotorDatabase, None]:
     """Dependency to get database instance"""
     try:
-        yield db_instance
-    except Exception as e:
-        logger.error(f"Database error: {e}")
+        db = await db_client.connect()
+        yield db
+    except HTTPException:  # Add this to let FastAPI handle its own exceptions
+        raise
+    except Exception as e: # Catch other (presumably database-related) errors
+        logger.error(f"Database connection error in get_db: {e}") # Updated log message
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database connection error"
         )
 
-# --- Authentication ---
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
-
-SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
-ALGORITHM = "HS256"
-
-if not SUPABASE_JWT_SECRET:
-    logger.critical("SUPABASE_JWT_SECRET environment variable is not set. Authentication will fail.")
-    # In production, you might want to raise an exception here to prevent startup
-
 async def get_current_user_from_token(
-    token: str = Depends(oauth2_scheme),
-    db: Database = Depends(get_db)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncIOMotorDatabase = Depends(get_db)
 ) -> UserInDB:
-    """Extract and validate user from JWT token"""
-    
-    if not SUPABASE_JWT_SECRET:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="JWT Secret not configured on the server. Cannot authenticate.",
-        )
-
+    """Get current user from JWT token"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -89,27 +103,17 @@ async def get_current_user_from_token(
     )
     
     try:
-        payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=[ALGORITHM])
-        supabase_id: Optional[str] = payload.get("sub")
-        if supabase_id is None:
+        # Decode JWT token
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
             raise credentials_exception
-
-    except JWTError as e:
-        logger.warning(f"JWT decode error: {e}")
-        raise credentials_exception from e
-
-    try:
-        user = get_user_by_supabase_id(db, supabase_id)
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User profile not found. Please complete registration or contact support."
-            )
-        return user
-        
-    except Exception as e:
-        logger.error(f"Error fetching user: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error retrieving user information"
-        )
+    except JWTError:
+        raise credentials_exception
+    
+    # Get user from database
+    user = await get_user_by_mongodb_id(db, user_id)
+    if user is None:
+        raise credentials_exception
+    
+    return user

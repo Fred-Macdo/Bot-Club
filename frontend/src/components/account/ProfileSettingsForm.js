@@ -12,43 +12,40 @@ import {
   IconButton,
   Stack, 
   Typography, 
-  Select,
   Grid,
   Divider,
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Card,
-  CardContent,
   Paper
 } from '@mui/material';
 import { PhotoCamera as PhotoCameraIcon, ExpandMore as ExpandMoreIcon, Edit as EditIcon } from '@mui/icons-material';
-import axios from 'axios';
 import { useAuth } from '../router/AuthContext';
+import { authApi } from '../../api/Client';
 
 const ProfileSettings = () => {
   const theme = useTheme();
-  const { user } = useAuth(); // Get user from AuthContext
+  const { user, refreshUser } = useAuth(); // Use refreshUser instead of setUser
 
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
-    userName: '', // Added userName
+    userName: '',
+    phone: '',
     addressLine1: '',
     addressLine2: '',
     city: '',
     state: '',
     zipCode: '',
-    phone: '',
     timezone: 'America/New_York',
     bio: '',
     profileImage: ''
   });
   
-  const [loading, setLoading] = useState(false); // Used for both fetching and submitting
-  const [fetchLoading, setFetchLoading] = useState(true); // Specific loading for initial data fetch
-  const [formStatus, setFormStatus] = useState(null); // For fetch and submit status
+  const [loading, setLoading] = useState(false);
+  const [fetchLoading, setFetchLoading] = useState(true);
+  const [formStatus, setFormStatus] = useState(null);
   const [errors, setErrors] = useState({});
   const [isAccordionOpen, setIsAccordionOpen] = useState(false);
 
@@ -68,18 +65,14 @@ const ProfileSettings = () => {
   const states = [
     { "name": "Alabama", "abbreviation": "AL" },
     { "name": "Alaska", "abbreviation": "AK" },
-    { "name": "American Samoa", "abbreviation": "AS" },
     { "name": "Arizona", "abbreviation": "AZ" },
     { "name": "Arkansas", "abbreviation": "AR" },
     { "name": "California", "abbreviation": "CA" },
     { "name": "Colorado", "abbreviation": "CO" },
     { "name": "Connecticut", "abbreviation": "CT" },
     { "name": "Delaware", "abbreviation": "DE" },
-    { "name": "District Of Columbia", "abbreviation": "DC" },
-    { "name": "Federated States Of Micronesia", "abbreviation": "FM" },
     { "name": "Florida", "abbreviation": "FL" },
     { "name": "Georgia", "abbreviation": "GA" },
-    { "name": "Guam", "abbreviation": "GU" },
     { "name": "Hawaii", "abbreviation": "HI" },
     { "name": "Idaho", "abbreviation": "ID" },
     { "name": "Illinois", "abbreviation": "IL" },
@@ -89,7 +82,6 @@ const ProfileSettings = () => {
     { "name": "Kentucky", "abbreviation": "KY" },
     { "name": "Louisiana", "abbreviation": "LA" },
     { "name": "Maine", "abbreviation": "ME" },
-    { "name": "Marshall Islands", "abbreviation": "MH" },
     { "name": "Maryland", "abbreviation": "MD" },
     { "name": "Massachusetts", "abbreviation": "MA" },
     { "name": "Michigan", "abbreviation": "MI" },
@@ -105,13 +97,10 @@ const ProfileSettings = () => {
     { "name": "New York", "abbreviation": "NY" },
     { "name": "North Carolina", "abbreviation": "NC" },
     { "name": "North Dakota", "abbreviation": "ND" },
-    { "name": "Northern Mariana Islands", "abbreviation": "MP" },
     { "name": "Ohio", "abbreviation": "OH" },
     { "name": "Oklahoma", "abbreviation": "OK" },
     { "name": "Oregon", "abbreviation": "OR" },
-    { "name": "Palau", "abbreviation": "PW" },
     { "name": "Pennsylvania", "abbreviation": "PA" },
-    { "name": "Puerto Rico", "abbreviation": "PR" },
     { "name": "Rhode Island", "abbreviation": "RI" },
     { "name": "South Carolina", "abbreviation": "SC" },
     { "name": "South Dakota", "abbreviation": "SD" },
@@ -119,7 +108,6 @@ const ProfileSettings = () => {
     { "name": "Texas", "abbreviation": "TX" },
     { "name": "Utah", "abbreviation": "UT" },
     { "name": "Vermont", "abbreviation": "VT" },
-    { "name": "Virgin Islands", "abbreviation": "VI" },
     { "name": "Virginia", "abbreviation": "VA" },
     { "name": "Washington", "abbreviation": "WA" },
     { "name": "West Virginia", "abbreviation": "WV" },
@@ -129,46 +117,46 @@ const ProfileSettings = () => {
   
   useEffect(() => {
     const fetchProfileData = async () => {
-      if (!user) {
+      if (!user) { // If no user, don't attempt to fetch
         setFetchLoading(false);
-        // Optionally, clear form data or show a message if no user is authenticated
-        // setFormStatus({ type: 'info', message: 'Please log in to view your profile.' });
         return;
       }
 
       setFetchLoading(true);
       setFormStatus(null);
+      
       try {
-        const token = localStorage.getItem('token'); // Or get token from useAuth() if available
-        if (!token) {
-          throw new Error('Authentication token not found.');
-        }
-        // IMPORTANT: Replace '/api/users/me' with your actual endpoint to fetch user profile
-        const response = await axios.get('http://localhost:8000/api/users/me', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        // Use the AuthAPI to get user profile
+        const response = await authApi.getUserProfile(); // This is the call to client.js
         
-        const profileData = response.data; // Assuming response.data is the user object
+        // The backend returns { user: { ... } } for /api/users/me
+        // but if authApi.getUserProfile() directly returns the user object, adjust accordingly.
+        // Assuming response is the user object directly or response.user is the user object.
+        const profileData = response.user || response; 
+        
+        console.log('Profile data received for form:', profileData); 
+        
         setFormData({
-          firstName: profileData.profile?.firstName || '',
-          lastName: profileData.profile?.lastName || '',
+          firstName: profileData.firstName || '',
+          lastName: profileData.lastName || '',
           email: profileData.email || '',
-          userName: profileData.userName || '', // Populate userName
-          addressLine1: profileData.profile?.address?.line1 || '',
-          addressLine2: profileData.profile?.address?.line2 || '',
-          city: profileData.profile?.address?.city || '',
-          state: profileData.profile?.address?.state || '',
-          zipCode: profileData.profile?.address?.zipCode || '',
-          phone: profileData.profile?.phone || '',
-          timezone: profileData.profile?.timezone || 'America/New_York',
-          bio: profileData.profile?.bio || '',
-          profileImage: profileData.profile?.profileImage || ''
+          userName: profileData.userName || '',
+          phone: profileData.phone || '',
+          // Ensure address is handled correctly, it might be nested
+          addressLine1: profileData.addressLine1 || profileData.address?.addressLine1 || '',
+          addressLine2: profileData.addressLine2 || profileData.address?.addressLine2 || '',
+          city: profileData.city || profileData.address?.city || '',
+          state: profileData.state || profileData.address?.state || '',
+          zipCode: profileData.zipCode || profileData.address?.zipCode || '',
+          timezone: profileData.timezone || 'America/New_York',
+          bio: profileData.bio || '',
+          profileImage: profileData.profileImage || ''
         });
       } catch (error) {
         console.error('Failed to fetch profile data:', error);
         setFormStatus({
           type: 'error',
-          message: error.response?.data?.detail || error.message || 'Could not load profile information.',
+          message: error.message || 'Could not load profile information.',
         });
       } finally {
         setFetchLoading(false);
@@ -176,7 +164,7 @@ const ProfileSettings = () => {
     };
 
     fetchProfileData();
-  }, [user]); // Refetch if user object changes
+  }, [user]); // Dependency array ensures this runs when user object is available/changes
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -219,11 +207,7 @@ const ProfileSettings = () => {
   };
   
   const handleImageChange = (e) => {
-    // Handle profile image upload
-    // This would typically upload to a server and get back a URL
     if (e.target.files && e.target.files[0]) {
-      // For demo purposes, we'll just use a local URL
-      // In a real app, you'd upload to a server
       const reader = new FileReader();
       
       reader.onload = (event) => {
@@ -246,25 +230,47 @@ const ProfileSettings = () => {
     setFormStatus(null);
     
     try {
-      const response = await axios.post('http://localhost:8000/api/users/profile', formData, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+      // Prepare the update data to match backend expectations
+      const updateData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone || null,
+        address: {
+          addressLine1: formData.addressLine1 || null,
+          addressLine2: formData.addressLine2 || null,
+          city: formData.city || null,
+          state: formData.state || null,
+          zipCode: formData.zipCode || null
+        },
+        timezone: formData.timezone,
+        bio: formData.bio || null,
+        profileImage: formData.profileImage || null
+      };
+
+      console.log('Sending update data:', updateData);
+
+      // Update the profile
+      const response = await authApi.updateUserProfile(updateData);
+      console.log('Update response:', response);
+
+      // Refresh user data in the context
+      await refreshUser();
+
+      setFormStatus({
+        type: 'success',
+        message: 'Profile updated successfully!'
       });
 
-      if (response.status === 200) {
-        setFormStatus({
-          type: 'success',
-          message: 'Profile updated successfully!'
-        });
-      }
+      // Close the accordion after successful update
+      setIsAccordionOpen(false);
+
     } catch (error) {
+      console.error('Error updating profile:', error);
       setFormStatus({
         type: 'error',
-        message: error.response?.data?.message || 'An error occurred while updating your profile.'
+        message: error.response?.data?.detail || error.message || 'An error occurred while updating your profile.'
       });
-      console.error('Error updating profile:', error);
     } finally {
       setLoading(false);
     }
@@ -277,9 +283,17 @@ const ProfileSettings = () => {
       formData.city,
       formData.state,
       formData.zipCode,
-    ].filter(Boolean); // Filter out empty or null parts
+    ].filter(Boolean);
     return parts.length > 0 ? parts.join(', ') : 'N/A';
   };
+
+  if (fetchLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ py: 2 }}> 
@@ -290,34 +304,48 @@ const ProfileSettings = () => {
         View and update your personal information and preferences.
       </Typography>
 
-      {/* Static Profile Display Section */}
-      {fetchLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
-          <CircularProgress />
-        </Box>
-      ) : formStatus?.type === 'error' && !formData.email ? ( // Show error if fetch failed and no data loaded
+      {/* Show error if profile failed to load */}
+      {formStatus?.type === 'error' && !formData.email && (
         <Alert severity="error" sx={{ my: 2 }}>{formStatus.message}</Alert>
-      ) : (
-        <Paper elevation={1} sx={{ p: 3, mb: 3, borderRadius: 2, backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[100] }}>
-          <Stack direction="row" spacing={3} alignItems="center" sx={{ mb: 2 }}>
-            <Avatar 
-              src={formData.profileImage} 
-              sx={{ width: 80, height: 80, border: `2px solid ${theme.palette.primary.main}` }}
-            />
-            <Box>
-              <Typography variant="h6">{formData.firstName} {formData.lastName}</Typography>
-              <Typography variant="body1" color="text.secondary">{formData.userName ? `@${formData.userName}` : ''}</Typography>
-              <Typography variant="body2" color="text.secondary">{formData.email}</Typography>
-            </Box>
-          </Stack>
-          <Divider sx={{ my: 2 }} />
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}><Typography><strong>Phone:</strong> {formData.phone || 'N/A'}</Typography></Grid>
-            <Grid item xs={12} sm={6}><Typography><strong>Timezone:</strong> {formData.timezone || 'N/A'}</Typography></Grid>
-            <Grid item xs={12}><Typography><strong>Address:</strong> {formatAddress()}</Typography></Grid>
-            {formData.bio && <Grid item xs={12}><Typography><strong>Bio:</strong> {formData.bio}</Typography></Grid>}
+      )}
+
+      {/* Static Profile Display Section */}
+      <Paper elevation={1} sx={{ p: 3, mb: 3, borderRadius: 2, backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[100] }}>
+        <Stack direction="row" spacing={3} alignItems="center" sx={{ mb: 2 }}>
+          <Avatar 
+            src={formData.profileImage} 
+            sx={{ width: 80, height: 80, border: `2px solid ${theme.palette.primary.main}` }}
+          >
+            {formData.firstName?.[0] || formData.userName?.[0] || 'U'}
+          </Avatar>
+          <Box>
+            <Typography variant="h6">{formData.firstName} {formData.lastName}</Typography>
+            <Typography variant="body1" color="text.secondary">{formData.userName ? `@${formData.userName}` : ''}</Typography>
+            <Typography variant="body2" color="text.secondary">{formData.email}</Typography>
+          </Box>
+        </Stack>
+        <Divider sx={{ my: 2 }} />
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={6}>
+            <Typography><strong>Phone:</strong> {formData.phone || 'N/A'}</Typography>
           </Grid>
-        </Paper>
+          <Grid item xs={12} sm={6}>
+            <Typography><strong>Timezone:</strong> {formData.timezone || 'N/A'}</Typography>
+          </Grid>
+          <Grid item xs={12}>
+            <Typography><strong>Address:</strong> {formatAddress()}</Typography>
+          </Grid>
+          {formData.bio && (
+            <Grid item xs={12}>
+              <Typography><strong>Bio:</strong> {formData.bio}</Typography>
+            </Grid>
+          )}
+        </Grid>
+      </Paper>
+
+      {/* Show success message outside accordion */}
+      {formStatus?.type === 'success' && (
+        <Alert severity="success" sx={{ mb: 2 }}>{formStatus.message}</Alert>
       )}
 
       {/* Accordion for Update Form */}
@@ -330,29 +358,28 @@ const ProfileSettings = () => {
         >
           <Stack direction="row" alignItems="center" spacing={1}>
             <EditIcon />
-            <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>{isAccordionOpen ? 'Close Editor' : 'Edit Profile Details'}</Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
+              {isAccordionOpen ? 'Close Editor' : 'Edit Profile Details'}
+            </Typography>
           </Stack>
         </AccordionSummary>
         <AccordionDetails sx={{ p: { xs: 2, sm: 3 } }}>
-          <Box 
-            sx={{ 
-              maxWidth: '600px', // Retaining original max-width for the form content
-              mx: 'auto',
-            }}
-          >
+          <Box sx={{ maxWidth: '600px', mx: 'auto' }}>
             <Box component="form" onSubmit={handleSubmit}>
               <Stack spacing={2.5}>
-                {/* Profile Image Upload - moved inside accordion */}
+                {/* Profile Image Upload */}
                 <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
                   <Box sx={{ position: 'relative' }}>
                     <Avatar
-                      src={formData.profileImage} // This will show the current or newly selected image
+                      src={formData.profileImage}
                       sx={{
                         width: 120,
                         height: 120,
                         border: `3px solid ${theme.palette.primary.main}`
                       }}
-                    />
+                    >
+                      {formData.firstName?.[0] || formData.userName?.[0] || 'U'}
+                    </Avatar>
                     <IconButton
                       color="primary"
                       aria-label="upload picture"
@@ -382,9 +409,9 @@ const ProfileSettings = () => {
 
                 <Divider sx={{ my: 2 }} />
 
-                {/* Personal Information Fields from existing form */}
+                {/* Form Fields */}
                 <TextField
-                  
+                  fullWidth
                   label="First Name"
                   name="firstName"
                   value={formData.firstName}
@@ -396,7 +423,7 @@ const ProfileSettings = () => {
                 />
                 
                 <TextField
-                  
+                  fullWidth
                   label="Last Name"
                   name="lastName"
                   value={formData.lastName}
@@ -408,7 +435,7 @@ const ProfileSettings = () => {
                 />
                 
                 <TextField
-                  
+                  fullWidth
                   label="Email Address"
                   name="email"
                   type="email"
@@ -421,7 +448,7 @@ const ProfileSettings = () => {
                 />
                 
                 <TextField
-                  
+                  fullWidth
                   label="Phone Number"
                   name="phone"
                   value={formData.phone}
@@ -433,50 +460,43 @@ const ProfileSettings = () => {
                 />
                 
                 <TextField
-                  
+                  fullWidth
                   label="Address Line 1"
                   name="addressLine1"
                   value={formData.addressLine1}
                   onChange={handleChange}
-                  error={!!errors.addressLine1}
-                  helperText={errors.addressLine1}
                   disabled={loading}
                   variant="outlined"
                 />
                 
                 <TextField
-                  
+                  fullWidth
                   label="Address Line 2"
                   name="addressLine2"
                   value={formData.addressLine2}
                   onChange={handleChange}
-                  error={!!errors.addressLine2}
-                  helperText={errors.addressLine2 || "Optional"}
+                  helperText="Optional"
                   disabled={loading}
                   variant="outlined"
                 />
                 
                 <TextField
-                  
+                  fullWidth
                   label="City"
                   name="city"
                   value={formData.city}
                   onChange={handleChange}
-                  error={!!errors.city}
-                  helperText={errors.city}
                   disabled={loading}
                   variant="outlined"
                 />
                 
                 <TextField
-                  
+                  fullWidth
                   select
                   label="State"
                   name="state"
                   value={formData.state}
                   onChange={handleChange}
-                  error={!!errors.state}
-                  helperText={errors.state}
                   disabled={loading}
                   variant="outlined"
                 >
@@ -488,19 +508,17 @@ const ProfileSettings = () => {
                 </TextField>
                 
                 <TextField
-                  
+                  fullWidth
                   label="ZIP Code"
                   name="zipCode"
                   value={formData.zipCode}
                   onChange={handleChange}
-                  error={!!errors.zipCode}
-                  helperText={errors.zipCode}
                   disabled={loading}
                   variant="outlined"
                 />
                 
                 <TextField
-                  
+                  fullWidth
                   select
                   label="Timezone"
                   name="timezone"
@@ -517,7 +535,7 @@ const ProfileSettings = () => {
                 </TextField>
 
                 <TextField
-                  
+                  fullWidth
                   label="Bio"
                   name="bio"
                   value={formData.bio}
@@ -529,19 +547,18 @@ const ProfileSettings = () => {
                   variant="outlined"
                 />
 
-                {formStatus && ( // This formStatus is for the submit action
-                  <Fade in={!!formStatus}>
-                    <Alert severity={formStatus.type} sx={{ mt: 2 }}>
-                      {formStatus.message}
-                    </Alert>
-                  </Fade>
+                {/* Show error messages inside the form */}
+                {formStatus?.type === 'error' && (
+                  <Alert severity="error" sx={{ mt: 2 }}>
+                    {formStatus.message}
+                  </Alert>
                 )}
 
                 <Button
                   type="submit"
                   variant="contained"
                   color="primary"
-                  disabled={loading} // This loading is for the submit action
+                  disabled={loading}
                   startIcon={loading && <CircularProgress size={16} />}
                   sx={{ mt: 2, py: 1.5 }}
                 >

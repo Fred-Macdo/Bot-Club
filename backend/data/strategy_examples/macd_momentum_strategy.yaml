@@ -1,0 +1,50 @@
+# MACD Momentum Strategy
+# Enter when MACD crosses above signal line with volume above 20-day average
+
+name: "MACD Momentum Strategy"
+description: "Enter when MACD crosses above signal line with volume above 20-day average"
+
+# Trading configuration
+symbols: ["TSLA", "NVDA", "AMD"]
+timeframe: "1h"
+start_date: "2024-01-01"
+end_date: "2024-12-31"
+
+# Entry conditions
+entry_conditions:
+  - indicator: "macd"
+    comparison: "crosses_above"
+    value: "macd_signal"
+  - indicator: "volume"
+    comparison: "above"
+    value: "volume_sma_20"
+
+# Exit conditions
+exit_conditions:
+  - indicator: "macd"
+    comparison: "crosses_below"
+    value: "macd_signal"
+
+# Risk management parameters
+risk_management:
+  position_sizing_method: "atr_based"
+  risk_per_trade: 0.025
+  stop_loss: 0.06
+  take_profit: 0.18
+  max_position_size: 800.0
+  atr_multiplier: 2.0
+
+# Required indicators
+indicators:
+  - name: "MACD"
+    params:
+      fast: 12
+      slow: 26
+      signal: 9
+  - name: "SMA"
+    params:
+      period: 20
+      column: "volume"
+  - name: "ATR"
+    params:
+      period: 14

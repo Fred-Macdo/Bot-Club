@@ -1,7 +1,6 @@
 // src/context/AlpacaContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from '../components/router/AuthContext';
-import { supabase } from '../lib/supabase';
 
 const AlpacaContext = createContext();
 
@@ -10,8 +9,13 @@ export function AlpacaProvider({ children }) {
   const [alpacaConfig, setAlpacaConfig] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Helper function to get auth token
+  const getAuthToken = () => {
+    return localStorage.getItem('token');
+  };
+
   useEffect(() => {
-    // Get Alpaca configuration from database
+    // Get Alpaca configuration from backend API
     const fetchAlpacaConfig = async () => {
       if (!user) {
         setAlpacaConfig(null);
@@ -21,18 +25,23 @@ export function AlpacaProvider({ children }) {
 
       try {
         setLoading(true);
+        const token = getAuthToken();
         
-        const { data, error } = await supabase
-          .from('alpaca_configs')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
-        
-        if (error) {
-          console.error('Error fetching Alpaca config:', error);
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/api/alpaca-config`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setAlpacaConfig(data);
+        } else if (response.status === 404) {
+          // No config found, this is normal for new users
           setAlpacaConfig(null);
         } else {
-          setAlpacaConfig(data);
+          console.error('Error fetching Alpaca config:', response.statusText);
+          setAlpacaConfig(null);
         }
       } catch (error) {
         console.error('Error in fetchAlpacaConfig:', error);
@@ -45,83 +54,60 @@ export function AlpacaProvider({ children }) {
     fetchAlpacaConfig();
   }, [user]);
 
-  // Save Alpaca configuration to database
+  // Save Alpaca configuration to backend
   const saveAlpacaConfig = async (config) => {
     if (!user) return { success: false, error: 'User not authenticated' };
 
     try {
-      // Check if config already exists
-      const { data, error: selectError } = await supabase
-        .from('alpaca_configs')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (selectError && selectError.code !== 'PGRST116') { // PGRST116 is the "not found" error
-        return { success: false, error: selectError };
-      }
-
-      let result;
+      const token = getAuthToken();
       
-      if (data?.id) {
-        // Update existing config
-        result = await supabase
-          .from('alpaca_configs')
-          .update({
-            api_key: config.apiKey,
-            api_secret: config.apiSecret,
-            endpoint: config.endpoint,
-            is_paper: config.isPaper,
-            updated_at: new Date()
-          })
-          .eq('id', data.id);
-      } else {
-        // Insert new config
-        result = await supabase
-          .from('alpaca_configs')
-          .insert({
-            user_id: user.id,
-            api_key: config.apiKey,
-            api_secret: config.apiSecret,
-            endpoint: config.endpoint,
-            is_paper: config.isPaper,
-            created_at: new Date(),
-            updated_at: new Date()
-          });
-      }
-
-      if (result.error) {
-        return { success: false, error: result.error };
-      }
-
-      // Update local state
-      setAlpacaConfig({
-        ...config,
-        user_id: user.id,
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/alpaca-config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          api_key: config.apiKey,
+          api_secret: config.apiSecret,
+          endpoint: config.endpoint,
+          is_paper: config.isPaper
+        })
       });
 
-      return { success: true };
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Update local state with response data
+        setAlpacaConfig(data);
+        
+        return { success: true };
+      } else {
+        const errorData = await response.json();
+        return { success: false, error: errorData.detail || 'Failed to save configuration' };
+      }
     } catch (error) {
       console.error('Error saving Alpaca config:', error);
-      return { success: false, error };
+      return { success: false, error: 'Network error occurred' };
     }
   };
 
   // Test Alpaca API connection
   const testAlpacaConnection = async (config) => {
     try {
-      // This would call your backend API to test the connection
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/test-alpaca`, {
+      const token = getAuthToken();
+      
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/alpaca-config/test`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.id}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          apiKey: config.apiKey || alpacaConfig?.api_key,
-          apiSecret: config.apiSecret || alpacaConfig?.api_secret,
-          endpoint: config.endpoint || alpacaConfig?.endpoint,
-          isPaper: config.isPaper !== undefined ? config.isPaper : alpacaConfig?.is_paper
+          api_key: config.apiKey,
+          api_secret: config.apiSecret,
+          endpoint: config.endpoint,
+          is_paper: config.isPaper
         })
       });
 

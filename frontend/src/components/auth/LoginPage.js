@@ -1,19 +1,18 @@
 // 6. Update LoginPage.js with the correct auth hook
 // /frontend/src/components/auth/LoginPage.js
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link as RouterLink, useLocation } from 'react-router-dom';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { useAuth } from '../router/AuthContext'; // Updated path
 import {
   Box, Button, TextField, Typography, Paper, Container, Alert, CircularProgress, Link
 } from '@mui/material';
 
 const LoginPage = () => {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [formError, setFormError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
   const { signIn, user } = useAuth(); // Use the auth hook and get user state
 
   // If already logged in, redirect to dashboard
@@ -29,35 +28,29 @@ const LoginPage = () => {
     setFormError('');
     setLoading(true);
 
-    console.log('Attempting to sign in with:', { email });
+    console.log('Attempting to sign in with:', { username });
 
     try {
-      const { data, error } = await signIn({ email, password });
-      
-      console.log('Sign in response:', { data, error });
+      const { data, error } = await signIn(username, password);
       
       if (error) {
-        setFormError(error.message || 'Failed to sign in. Please check your credentials.');
-        setLoading(false);
-      } else if (data && data.user) {
-        console.log('Login successful, redirecting to dashboard');
-        navigate('/dashboard', { replace: true });
+        setFormError(error.message);
+        console.error('Login error:', error);
       } else {
-        // This handles the case where there's no error but also no user data
-        console.warn('No error but no user data returned from auth');
-        setFormError('Something went wrong with authentication. Please try again.');
-        setLoading(false);
+        console.log('Login successful:', data);
+        navigate('/dashboard');
       }
-    } catch (err) {
-      console.error('Unexpected error during sign in:', err);
-      setFormError('An unexpected error occurred. Please try again later.');
+    } catch (error) {
+      setFormError(error.message || 'Login failed');
+      console.error('Login error:', error);
+    } finally {
       setLoading(false);
     }
   };
 
   // For testing/demo purposes - auto-fill credentials
   const fillDemoCredentials = () => {
-    setEmail('demo@botclub.com');
+    setUsername('demo@botclub.com');
     setPassword('demo123');
   };
 
@@ -95,16 +88,16 @@ const LoginPage = () => {
           </Alert>
         )}
         <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1, width: '100%' }}>
-          <Typography sx={{ color: '#d4c892', mb: 1 }}>Email Address *</Typography>
+          <Typography sx={{ color: '#d4c892', mb: 1 }}>Username *</Typography>
           <TextField
             required
             fullWidth
-            id="email"
-            name="email"
-            autoComplete="email"
+            id="username"
+            name="username"
+            autoComplete="username"
             autoFocus
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             disabled={loading}
             variant="outlined"
             InputProps={{

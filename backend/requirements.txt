@@ -1,5 +1,7 @@
-FastAPI
+FastAPI[standard]
+SQLAlchemy
 pymongo
+motor
 uvicorn
 python-dotenv
 passlib
@@ -9,3 +11,6 @@ python-jose
 email-validator
 PyJWT
 python-jose[cryptography]
+httpx
+requests
+PyYAML

@@ -1,0 +1,45 @@
+# Bollinger Bands Mean Reversion Strategy
+# Buy when price touches lower Bollinger Band and RSI is oversold
+
+name: "Bollinger Bands Mean Reversion"
+description: "Buy when price touches lower Bollinger Band and RSI is oversold"
+
+# Trading configuration
+symbols: ["SPY", "QQQ", "IWM"]
+timeframe: "1d"
+start_date: "2024-01-01"
+end_date: "2024-12-31"
+
+# Entry conditions
+entry_conditions:
+  - indicator: "close"
+    comparison: "below"
+    value: "bb_lower"
+  - indicator: "rsi"
+    comparison: "below"
+    value: 30
+
+# Exit conditions
+exit_conditions:
+  - indicator: "close"
+    comparison: "above"
+    value: "bb_middle"
+
+# Risk management parameters
+risk_management:
+  position_sizing_method: "percentage"
+  risk_per_trade: 0.1
+  stop_loss: 0.08
+  take_profit: 0.12
+  max_position_size: 1500.0
+  atr_multiplier: 2.0
+
+# Required indicators
+indicators:
+  - name: "BBANDS"
+    params:
+      period: 20
+      std: 2
+  - name: "RSI"
+    params:
+      period: 14

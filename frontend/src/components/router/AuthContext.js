@@ -1,105 +1,143 @@
 // 3. Use a single AuthContext implementation
 // /frontend/src/router/AuthContext.js
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import { Box, CircularProgress } from '@mui/material';
+import { authApi } from '../../api/Client';
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session and user
-    const getInitialSession = async () => {
+    const checkAuth = async () => {
       try {
-        setLoading(true);
-        
-        const { data: { session } } = await supabase.auth.getSession();
-        setSession(session);
-        setUser(session?.user || null);
-        
-        setLoading(false);
+        if (authApi.isAuthenticated()) {
+          console.log('Token found, fetching user data...');
+          const response = await authApi.getUserProfile(); // Consistent method
+          console.log('User data fetched:', response);
+          setUser(response); // API returns user data directly, not wrapped in .user
+        }
       } catch (error) {
-        console.error('Error getting initial session:', error);
+        console.error('Failed to get current user:', error);
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          authApi.logout();
+          setUser(null);
+        }
+      } finally {
         setLoading(false);
       }
     };
 
-    getInitialSession();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user || null);
-      setLoading(false);
-    });
-
-    // Cleanup subscription on unmount
-    return () => subscription.unsubscribe();
+    checkAuth();
   }, []);
 
-  // Sign out function
-  const signOut = async () => {
+  const signIn = async (email, password) => {
+    setLoading(true);
     try {
-      await supabase.auth.signOut();
-      setUser(null);
-      setSession(null);
-      return { error: null };
+      console.log('Attempting login...');
+      const loginResponse = await authApi.login(email, password);
+      console.log('Login response:', loginResponse);
+      
+      // Get user data after login
+      const userResponse = await authApi.getUserProfile(); // Use profile endpoint
+      console.log('User data after login:', userResponse);
+      
+      setUser(userResponse); // API returns user data directly, not wrapped in .user
+      setLoading(false);
+      
+      return { 
+        data: { 
+          user: userResponse, // Return user data directly
+          token: loginResponse.access_token 
+        }, 
+        error: null 
+      };
     } catch (error) {
-      console.error('Error signing out:', error);
-      return { error };
+      console.error('Sign In error:', error);
+      setLoading(false);
+      const errorMessage = error.response?.data?.detail || error.message || 'Login failed. Please check your credentials.';
+      return { data: null, error: { message: errorMessage } };
     }
   };
-  // Sign up function
-  const signUp = async (userData) => {
+  const signUp = async (registrationData) => {
+    setLoading(true);
     try {
-      console.log('Sending registration data:', userData);
-      const response = await fetch('http://localhost:8000/api/users/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(userData),
-      });
+      console.log('Attempting registration...');
+
+      await authApi.register(registrationData);
+      console.log('Registration successful, logging in...');
       
-      const data = await response.json();
+      // After successful registration, login automatically
+      const loginResponse = await authApi.login(registrationData.email, registrationData.password);
       
-      if (!response.ok) {
-        return { 
-          error: { 
-            message: data.detail || 'Registration failed. Please try again.' 
-          } 
-        };
-      }
+      // Get user profile
+      const userResponse = await authApi.getUserProfile(); // Use profile endpoint
+      setUser(userResponse); // API returns user data directly, not wrapped in .user
+      setLoading(false);
       
-      return { data };
-    } catch (error) {
-      console.error('Registration error:', error);
       return { 
-        error: { 
-          message: 'Network or server error. Please try again later.' 
-        } 
+        data: { 
+          user: userResponse, // Return user data directly
+          token: loginResponse.access_token 
+        }, 
+        error: null 
       };
+    } catch (error) {
+      console.error('Sign Up error:', error);
+      setLoading(false);
+      const errorMessage = error.response?.data?.detail || error.message || 'Registration failed. Please try again.';
+      return { data: null, error: { message: errorMessage } };
     }
   };
 
-  // Auth value to be provided throughout the app
+  const signOut = () => {
+    console.log('Signing out...');
+    authApi.logout();
+    setUser(null);
+  };
+
+  // Function to refresh user data (useful after profile updates)
+  const refreshUser = async () => {
+    try {
+      console.log('Refreshing user data...');
+      const response = await authApi.getUserProfile(); // Use profile endpoint
+      console.log('Refreshed user data:', response);
+      setUser(response); // API returns user data directly, not wrapped in .user
+      return response; // Return user data directly
+    } catch (error) {
+      console.error('Failed to refresh user data:', error);
+      // Don't logout on refresh error unless it's an auth error
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        signOut();
+      }
+      throw error;
+    }
+  };
+
   const value = {
     user,
-    session,
+    setUser,
     loading,
+    isAuthenticated: !!user,
+    signIn,
     signUp,
-    signIn: (data) => supabase.auth.signInWithPassword(data),
     signOut,
-    isAuthenticated: !!user
+    refreshUser, // Add refresh function
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {!loading ? children : (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+          <CircularProgress />
+        </Box>
+      )}
+    </AuthContext.Provider>
+  );
 }
 
-// Custom hook to use auth context
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

@@ -1,141 +1,277 @@
-// src/context/StrategyContext.js
-import React, { createContext, useContext, useState, useEffect } from 'react';
+// frontend/src/context/StrategyContext.js
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../components/router/AuthContext';
-import { 
-  fetchUserStrategies, 
-  saveStrategy, 
-  updateStrategy, 
-  deleteStrategy 
-} from '../api/AlpacaService';
+import apiClient from '../api/Client'; // Corrected import path
 
 const StrategyContext = createContext();
 
-export function StrategyProvider({ children }) {
+export const useStrategy = () => {
+  const context = useContext(StrategyContext);
+  if (!context) {
+    throw new Error('useStrategy must be used within a StrategyProvider');
+  }
+  return context;
+};
+
+export const StrategyProvider = ({ children }) => {
   const { user } = useAuth();
   const [strategies, setStrategies] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [defaultStrategies, setDefaultStrategies] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [lastRefresh, setLastRefresh] = useState(null);
 
-  useEffect(() => {
-    const getStrategies = async () => {
-      if (!user) {
-        setStrategies([]);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const result = await fetchUserStrategies(user.id);
-        
-        if (result.success) {
-          setStrategies(result.strategies || []);
-        } else {
-          setError(result.error || 'Failed to fetch strategies');
-          setStrategies([]);
+  // Fetch user strategies
+  const fetchUserStrategies = useCallback(async () => {
+    if (!user) {
+      console.log('No user found, skipping strategy fetch');
+      setStrategies([]);
+      return;
+    }
+    const token = apiClient.getToken(); // Get token using apiClient
+    if (!token) {
+      console.log('No token found, skipping strategy fetch');
+      setError('User not authenticated'); // Set an error if token is missing
+      setStrategies([]);
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch('/api/strategy/user_strategies', {
+        headers: {
+          'Authorization': `Bearer ${token}`, // Use token from apiClient
+          'Content-Type': 'application/json'
         }
-      } catch (error) {
-        console.error('Error in getStrategies:', error);
-        setError('An unexpected error occurred');
-        setStrategies([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+      });
 
-    getStrategies();
-  }, [user]);
-
-  const addStrategy = async (strategy) => {
-    if (!user) return { success: false, error: 'User not authenticated' };
-    
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const result = await saveStrategy(strategy, user.id);
-      
-      if (result.success && result.strategy) {
-        setStrategies([...strategies, result.strategy]);
-        return { success: true, strategy: result.strategy };
-      } else {
-        setError(result.error || 'Failed to add strategy');
-        return { success: false, error: result.error };
+      if (!response.ok) {
+        // Try to parse error message from response
+        let errorMessage = `Failed to fetch strategies: ${response.statusText}`;
+        try {
+            const errorData = await response.json();
+            errorMessage = errorData.detail || errorMessage;
+        } catch (e) {
+            // Ignore if response is not JSON
+        }
+        throw new Error(errorMessage);
       }
-    } catch (error) {
-      console.error('Error in addStrategy:', error);
-      setError('An unexpected error occurred');
-      return { success: false, error: 'An unexpected error occurred' };
+
+      const data = await response.json();
+      console.log('Fetched user strategies:', data);
+      
+      setStrategies(Array.isArray(data) ? data : []); // Ensure strategies is always an array
+      setLastRefresh(new Date());
+    } catch (err) {
+      console.error('Error fetching strategies:', err);
+      setError(err.message);
+      setStrategies([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]); // Keep user dependency, as fetch should run if user logs in/out
 
-  const updateUserStrategy = async (id, strategy) => {
-    if (!user) return { success: false, error: 'User not authenticated' };
-    
+  // Fetch default strategies (public endpoint)
+  const fetchDefaultStrategies = useCallback(async () => {
+    try {
+      const response = await fetch('/api/strategy/default');
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch default strategies: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('Fetched default strategies:', data);
+      
+      setDefaultStrategies(data);
+    } catch (err) {
+      console.error('Error fetching default strategies:', err);
+      // Don't set error for default strategies as it's not critical
+    }
+  }, []);
+
+  // Save a new strategy
+  const saveStrategy = useCallback(async (strategyData) => {
+    if (!user) {
+      throw new Error('User must be authenticated to save strategies');
+    }
+    const token = apiClient.getToken(); // Get token using apiClient
+    if (!token) {
+      throw new Error('User not authenticated, token missing.');
+    }
+
     try {
       setLoading(true);
       setError(null);
-      
-      const result = await updateStrategy(id, strategy, user.id);
-      
-      if (result.success && result.strategy) {
-        setStrategies(strategies.map(s => s.id === id ? result.strategy : s));
-        return { success: true, strategy: result.strategy };
-      } else {
-        setError(result.error || 'Failed to update strategy');
-        return { success: false, error: result.error };
+      const response = await fetch('/api/strategy', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`, // Use token from apiClient
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(strategyData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to save strategy');
       }
-    } catch (error) {
-      console.error('Error in updateUserStrategy:', error);
-      setError('An unexpected error occurred');
-      return { success: false, error: 'An unexpected error occurred' };
+
+      const savedStrategy = await response.json();
+      console.log('Strategy saved successfully:', savedStrategy);
+
+      // IMPORTANT: Refresh the strategies list after successful save
+      await fetchUserStrategies();
+      
+      return { success: true, strategy: savedStrategy };
+    } catch (err) {
+      console.error('Error saving strategy:', err);
+      setError(err.message);
+      return { success: false, error: err.message };
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, fetchUserStrategies]);
+  // Update an existing strategy
+  const updateStrategy = useCallback(async (strategyId, strategyData) => {
+    if (!user) {
+      throw new Error('User must be authenticated to update strategies');
+    }
+    const token = apiClient.getToken(); // Get token using apiClient
+    if (!token) {
+      throw new Error('User not authenticated, token missing.');
+    }
 
-  const deleteUserStrategy = async (id) => {
-    if (!user) return { success: false, error: 'User not authenticated' };
-    
     try {
       setLoading(true);
       setError(null);
-      
-      const result = await deleteStrategy(id, user.id);
-      
-      if (result.success) {
-        setStrategies(strategies.filter(s => s.id !== id));
-        return { success: true };
-      } else {
-        setError(result.error || 'Failed to delete strategy');
-        return { success: false, error: result.error };
+      const response = await fetch(`/api/strategy/${strategyId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`, // Use token from apiClient
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(strategyData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to update strategy');
       }
-    } catch (error) {
-      console.error('Error in deleteUserStrategy:', error);
-      setError('An unexpected error occurred');
-      return { success: false, error: 'An unexpected error occurred' };
+
+      const updatedStrategy = await response.json();
+      console.log('Strategy updated successfully:', updatedStrategy);
+
+      // Refresh strategies list
+      await fetchUserStrategies();
+      
+      return { success: true, strategy: updatedStrategy };
+    } catch (err) {
+      console.error('Error updating strategy:', err);
+      setError(err.message);
+      return { success: false, error: err.message };
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, fetchUserStrategies]);
+  // Delete a strategy
+  const deleteStrategy = useCallback(async (strategyId) => {
+    if (!user) {
+      throw new Error('User must be authenticated to delete strategies');
+    }
+    const token = apiClient.getToken(); // Get token using apiClient
+    if (!token) {
+      throw new Error('User not authenticated, token missing.');
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch(`/api/strategy/${strategyId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`, // Use token from apiClient
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to delete strategy');
+      }
+
+      console.log('Strategy deleted successfully');
+
+      // Refresh strategies list
+      await fetchUserStrategies();
+      
+      return { success: true };
+    } catch (err) {
+      console.error('Error deleting strategy:', err);
+      setError(err.message);
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  }, [user, fetchUserStrategies]);
+
+  // Manually refresh strategies
+  const refreshStrategies = useCallback(async () => {
+    console.log('Manually refreshing strategies...');
+    await Promise.all([
+      fetchUserStrategies(),
+      fetchDefaultStrategies()
+    ]);
+  }, [fetchUserStrategies, fetchDefaultStrategies]);
+
+  // Initial load and user change effect
+  useEffect(() => {
+    if (user) {
+      console.log('User detected, fetching strategies...');
+      fetchUserStrategies();
+      fetchDefaultStrategies();
+    } else {
+      console.log('No user, clearing strategies...');
+      setStrategies([]);
+      // Still fetch default strategies even without user
+      fetchDefaultStrategies();
+    }
+  }, [user, fetchUserStrategies, fetchDefaultStrategies]);
+
+  // Periodic refresh (optional - every 30 seconds)
+  useEffect(() => {
+    if (user) {
+      const interval = setInterval(() => {
+        console.log('Periodic strategy refresh...');
+        fetchUserStrategies();
+      }, 30000); // 30 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [user, fetchUserStrategies]);
 
   const value = {
     strategies,
+    defaultStrategies,
     loading,
     error,
-    addStrategy,
-    updateStrategy: updateUserStrategy,
-    deleteStrategy: deleteUserStrategy,
-    refreshStrategies: () => fetchUserStrategies(user?.id)
+    lastRefresh,
+    saveStrategy,
+    updateStrategy,
+    deleteStrategy,
+    refreshStrategies,
+    // Utility functions
+    getStrategyById: (id) => strategies.find(s => s.id === id),
+    hasStrategies: strategies.length > 0,
+    totalStrategies: strategies.length + defaultStrategies.length
   };
 
-  return <StrategyContext.Provider value={value}>{children}</StrategyContext.Provider>;
-}
+  return (
+    <StrategyContext.Provider value={value}>
+      {children}
+    </StrategyContext.Provider>
+  );
+};
 
-export function useStrategy() {
-  return useContext(StrategyContext);
-}
+export default StrategyContext;

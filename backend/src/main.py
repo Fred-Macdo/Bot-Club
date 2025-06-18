@@ -1,18 +1,73 @@
+
+from dotenv import load_dotenv
+import os
+from pathlib import Path
+
+# Load environment variables from .env file
+# This looks for .env in the backend directory (parent of src)
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import users
-from .database import client  # Your MongoDB client
+from contextlib import asynccontextmanager
+from motor.motor_asyncio import AsyncIOMotorClient
+
+from .routes import auth, user, user_config, strategy
+from .database.client import db_client
+
+from .services.default_strategies import initialize_default_strategies
+
+# Global database client
+motor_client = None
+database = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Handle application startup and shutdown events.
+    This ensures proper initialization and cleanup of resources.
+    """
+    # Startup
+    global motor_client, database
+    
+    print("Starting up application...")
+    
+    # Initialize MongoDB connection
+    motor_client = AsyncIOMotorClient(os.getenv("MONGO_URL", "mongodb://mongo:27017/"))
+    database = motor_client[os.getenv("MONGO_DB_NAME", "bot_club_db")]
+    
+    # Store database in app state for dependency injection
+    app.state.db = database
+    
+    # Initialize default strategies (only creates if they don't exist)
+    try:
+        await initialize_default_strategies(database)
+        print("Default strategies initialized successfully")
+    except Exception as e:
+        print(f"Error initializing default strategies: {e}")
+        # Don't fail startup if default strategies can't be initialized
+    
+    yield  # Application runs
+    
+    # Shutdown
+    print("Shutting down application...")
+    if motor_client:
+        motor_client.close()
 
 
+# Create FastAPI app with lifespan events
 app = FastAPI(
     title="Bot Club API",
-    description="API for Bot Club trading application",
-    version="0.1.0"
+    description="Algorithmic Trading Platform API",
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # --- CORS Middleware Configuration ---
 origins = [
     "http://localhost:3000",
+    "http://localhost:3001",  # Add additional frontend ports if needed
 ]
 
 app.add_middleware(
@@ -22,25 +77,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# --- End CORS Middleware Configuration ---
 
 # Include routers
-app.include_router(users.router)
+app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
+app.include_router(user.router, prefix="/api/users", tags=["users"])
+app.include_router(user_config.router, prefix="/api/user-config", tags=["user-config"])
+app.include_router(strategy.router, prefix="/api/strategy", tags=["strategies"])
 
-# Add startup/shutdown events for MongoDB
-@app.on_event("startup")
-async def startup_event():
-    # Test MongoDB connection
+@app.get("/")
+async def root():
+    return {"message": "Trading Bot API", "status": "running"}
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for container monitoring"""
     try:
-        client.admin.command('ping')
-        print("Successfully connected to MongoDB")
+        # Test database connection
+        await database.command("ping")
+        return {"status": "healthy", "database": "connected"}
     except Exception as e:
-        print(f"Failed to connect to MongoDB: {e}")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    client.close()
-
-@app.get("/", tags=["Root"])
-async def read_root():
-    return {"message": "Welcome to the Bot Club API"}
+        return {"status": "unhealthy", "database": "disconnected", "error": str(e)}
