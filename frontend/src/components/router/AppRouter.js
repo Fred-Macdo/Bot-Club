@@ -8,7 +8,7 @@ import LoginPage from '../auth/LoginPage';
 import RegisterPage from '../auth/RegisterPage';
 import Dashboard from '../dashboard/Dashboard';
 import StrategyBuilderPage from '../strategy/StrategyBuilder';
-import BacktestPage from '../trading/Backtest';
+import Backtest from '../trading/Backtest';
 import PaperTradingPage from '../trading/PaperTrade';
 import LiveTradingPage from '../trading/LiveTrade';
 import AccountSettings from '../account/AccountSettings';
@@ -31,8 +31,8 @@ const AppRouter = () => {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/strategy-builder" element={<StrategyBuilderPage />} />
             <Route path="/strategy-builder/:id" element={<StrategyBuilderPage />} />
-            <Route path="/backtest" element={<BacktestPage />} />
-            <Route path="/backtest/:id" element={<BacktestPage />} />
+            <Route path="/backtest" element={<Backtest />} />
+            <Route path="/backtest/:id" element={<Backtest />} />
             <Route path="/paper-trading" element={<PaperTradingPage />} />
             <Route path="/paper-trading/:id" element={<PaperTradingPage />} />
             <Route path="/live-trading" element={<LiveTradingPage />} />

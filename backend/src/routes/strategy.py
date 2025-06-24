@@ -137,6 +137,31 @@ async def get_default_strategies_endpoint(db: AsyncIOMotorDatabase = Depends(get
             detail=f"Failed to load default strategies: {str(e)}"
         )
 
+# ...existing code...
+
+@router.get("/defaults/with-ids", response_model=List[dict])
+async def get_default_strategies_with_ids(db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Get default strategies with IDs for backtest selection"""
+    try:
+        default_strategies_collection = db["default_strategies"]
+        strategies = []
+        
+        async for strategy in default_strategies_collection.find({}):
+            # Include the _id for backtest purposes
+            strategies.append({
+                "id": str(strategy["_id"]),
+                "name": strategy["name"],
+                "description": strategy.get("description", ""),
+                "type": "default"
+            })
+        
+        return strategies
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load default strategies with IDs: {str(e)}"
+        )
+
 @router.get("/{strategy_id}", response_model=StrategyResponse)
 async def get_strategy(
     strategy_id: str,

@@ -13,6 +13,8 @@ from ..models.strategy import (
 )
 from ..utils.mongo_helpers import PyObjectId
 from ..services.default_strategies import get_default_strategies_from_db
+from ..utils.redis_client import redis_client
+import json
 
 # Strategy Collection Name
 STRATEGY_COLLECTION = "strategy"
@@ -273,3 +275,20 @@ async def get_default_strategies_from_db(db: AsyncIOMotorDatabase) -> List[dict]
         strategies.append(doc)
     
     return strategies
+
+async def get_strategy_by_id_cached(db: AsyncIOMotorDatabase, strategy_id: str, user_id: str) -> Optional[Strategy]:
+    """Get strategy with Redis caching"""
+    cache_key = f"strategy:{strategy_id}:{user_id}"
+    
+    # Try cache first
+    cached_strategy = await redis_client.get(cache_key)
+    if cached_strategy:
+        return Strategy(**json.loads(cached_strategy))
+    
+    # Fallback to database
+    strategy = await get_strategy_by_id(db, strategy_id, user_id)
+    if strategy:
+        # Cache for 5 minutes
+        await redis_client.set_with_ttl(cache_key, strategy.model_dump(), 300)
+    
+    return strategy

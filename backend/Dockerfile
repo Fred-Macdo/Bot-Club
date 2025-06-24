@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.13-slim
+FROM python:3.12
 
 # Set the working directory in the container
 WORKDIR /app
@@ -8,10 +8,8 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 
 # Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r /app/requirements.txt && \
-    pip install 'pydantic[email,timezone]'
-    
+RUN pip install --no-cache-dir --upgrade pip==23.3.2 && \
+    pip install --no-cache-dir -r /app/requirements.txt
 
 # Copy the rest of the backend application code into the container at /app
 COPY . /app
@@ -22,3 +20,4 @@ EXPOSE 8000
 # Define the command to run your app using Uvicorn
 # If main.py is in src/, refer to it as src.main
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+

@@ -195,6 +195,10 @@ export const authApi = {
     return apiClient.get('/api/users/me');
   },
 
+  async updateUserProfile(userData) {
+    return apiClient.put('/api/users/me', userData);
+  },
+
   logout() {
     apiClient.removeToken();
     // Dispatch logout event for components to listen to
@@ -226,6 +230,10 @@ export const strategyApi = {
   // Get default/template strategies
   async getDefaultStrategies() {
     return apiClient.get('/api/strategy/default');
+  },
+
+  async getDefaultStrategiesWithIds() {
+    return apiClient.get('/api/strategy/defaults/with-ids');
   },
 
   // Get single strategy by ID
@@ -264,6 +272,25 @@ export const strategyApi = {
 
   async getBacktestResult(strategyId, backtestId) {
     return apiClient.get(`/api/strategy/${strategyId}/backtest/${backtestId}`);
+  }
+};
+
+// 🚀 BACKTEST API (for direct backtest operations)
+export const backtestApi = {
+  async runBacktest(backtestData) {
+    return apiClient.post('/api/backtest/run', backtestData);
+  },
+
+  async getBacktestStatus(backtestId) {
+    return apiClient.get(`/api/backtest/${backtestId}/status`);
+  },
+
+  async getUserBacktests() {
+    return apiClient.get('/api/backtest/');
+  },
+
+  async getBacktestById(backtestId) {
+    return apiClient.get(`/api/backtest/${backtestId}`);
   }
 };
 

@@ -1,292 +1,489 @@
 import asyncio
-import random
 from datetime import datetime, timedelta
-from typing import Dict, List, Any
+from typing import List, Dict, Any, Optional
+import random
 import math
 
-from ..models.strategy import (
-    Strategy,
-    BacktestResult,
-    BacktestParams
+from ..models.backtest import (
+    BacktestParams,
+    BacktestStats,
+    TradeData,
+    EquityPoint,
+    Backtest
 )
+from .data_providers import DataProviderFactory
+
+# Mock DataFrame and Series classes for environments without pandas
+class MockSeries:
+    def __init__(self, data: List[float]):
+        self.data = data
+    
+    def __getitem__(self, index):
+        return self.data[index]
+    
+    def __len__(self):
+        return len(self.data)
+    
+    def rolling(self, window):
+        return MockRolling(self.data, window)
+    
+    def mean(self):
+        return sum(self.data) / len(self.data) if self.data else 0
+    
+    def std(self):
+        if len(self.data) < 2:
+            return 0
+        mean_val = self.mean()
+        variance = sum((x - mean_val) ** 2 for x in self.data) / (len(self.data) - 1)
+        return math.sqrt(variance)
+
+class MockRolling:
+    def __init__(self, data: List[float], window: int):
+        self.data = data
+        self.window = window
+    
+    def mean(self):
+        result = []
+        for i in range(len(self.data)):
+            if i < self.window - 1:
+                result.append(None)
+            else:
+                window_data = self.data[i - self.window + 1:i + 1]
+                result.append(sum(window_data) / len(window_data))
+        return MockSeries(result)
+
+class MockDataFrame:
+    def __init__(self, data: Dict[str, List]):
+        self.data = data
+        self._index = list(range(len(next(iter(data.values())))))
+    
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            return MockSeries(self.data[key])
+        return self
+    
+    def __len__(self):
+        return len(self._index)
+    
+    def iterrows(self):
+        for i in self._index:
+            row_data = {col: values[i] for col, values in self.data.items()}
+            yield i, MockRow(row_data)
+    
+    def iloc(self, index):
+        if isinstance(index, int):
+            row_data = {col: values[index] for col, values in self.data.items()}
+            return MockRow(row_data)
+        return self
+    
+    @property
+    def index(self):
+        return self._index
+
+class MockRow:
+    def __init__(self, data: Dict[str, Any]):
+        self._data = data
+    
+    def __getitem__(self, key):
+        return self._data[key]
+    
+    def get(self, key, default=None):
+        return self._data.get(key, default)
 
 class BacktestEngine:
-    """Simple backtest engine for testing strategies"""
+    """
+    Backtest engine for running strategy simulations
+    """
     
     def __init__(self):
-        self.initial_capital = 100000.0
-        self.current_capital = 100000.0
+        self.portfolio_value = 0
+        self.cash_balance = 0
+        self.positions = {}
+        self.trades = []
+        self.equity_curve = []
+    
+    async def run_backtest(self, params: BacktestParams) -> Backtest:
+        """
+        Run a complete backtest simulation
+        """
+        print(f"DEBUG ENGINE: Starting backtest for strategy {params.strategy_id}")
+        
+        # Initialize portfolio
+        self.cash_balance = params.initial_capital
+        self.portfolio_value = params.initial_capital
         self.positions = {}
         self.trades = []
         self.equity_curve = []
         
-    async def run_backtest(self, strategy: Strategy, params: BacktestParams) -> BacktestResult:
-        """
-        Run a backtest for the given strategy
-        This is a simplified mock implementation for demonstration
-        In a real application, you would:
-        1. Fetch historical market data
-        2. Apply technical indicators
-        3. Execute trading logic based on conditions
-        4. Calculate performance metrics
-        """
+        # Generate mock market data
+        market_data = await self._generate_market_data(params)
         
-        # Initialize backtest parameters
-        self.initial_capital = params.initial_capital
-        self.current_capital = params.initial_capital
+        # Add technical indicators
+        market_data = await self._add_indicators(market_data, params)
+        
+        # Simulate strategy execution
+        await self._simulate_strategy(market_data, params)
+        
+        # Calculate performance statistics
+        stats = await self._calculate_statistics(params)
+        
+        # Create backtest result
+        result = Backtest(
+            user_id="temp",  # Will be set by caller
+            strategy_id=params.strategy_id,
+            initial_capital=params.initial_capital,
+            timeframe=params.timeframe,
+            start_date=params.start_date,
+            end_date=params.end_date,
+            data_provider=params.data_provider,
+            stats=stats,
+            trades=self.trades,
+            equity_curve=self.equity_curve,
+            status="completed"
+        )
+        
+        print(f"DEBUG ENGINE: Backtest completed with {len(self.trades)} trades")
+        return result
+    
+    async def run_backtest_with_progress(
+        self, 
+        params: BacktestParams, 
+        progress_callback
+    ) -> Backtest:
+        """Run backtest with progress callbacks for background execution"""
+        
+        await progress_callback("Initializing portfolio", 15)
+        
+        # Initialize portfolio
+        self.cash_balance = params.initial_capital
+        self.portfolio_value = params.initial_capital
         self.positions = {}
         self.trades = []
         self.equity_curve = []
         
-        # Parse date range
+        await progress_callback("Generating market data", 25)
+        
+        # Generate mock market data
+        market_data = await self._generate_market_data(params)
+        
+        await progress_callback("Adding technical indicators", 35)
+        
+        # Add technical indicators
+        market_data = await self._add_indicators(market_data, params)
+        
+        await progress_callback("Running strategy simulation", 50)
+        
+        # Simulate strategy execution
+        await self._simulate_strategy(market_data, params)
+        
+        await progress_callback("Calculating performance metrics", 75)
+        
+        # Calculate performance statistics
+        stats = await self._calculate_statistics(params)
+        
+        await progress_callback("Finalizing results", 85)
+        
+        # Create backtest result
+        result = Backtest(
+            user_id="temp",  # Will be set by caller
+            strategy_id=params.strategy_id,
+            initial_capital=params.initial_capital,
+            timeframe=params.timeframe,
+            start_date=params.start_date,
+            end_date=params.end_date,
+            data_provider=params.data_provider,
+            stats=stats,
+            trades=self.trades,
+            equity_curve=self.equity_curve,
+            status="completed"
+        )
+        
+        return result
+    
+    async def _generate_market_data(self, params: BacktestParams) -> MockDataFrame:
+        """
+        Generate mock OHLCV market data
+        """
+        print(f"DEBUG ENGINE: Generating market data from {params.start_date} to {params.end_date}")
+        
+        # Parse dates
         start_date = datetime.strptime(params.start_date, "%Y-%m-%d")
         end_date = datetime.strptime(params.end_date, "%Y-%m-%d")
         
-        # Generate mock trading data and simulate strategy execution
-        await self._simulate_trading(strategy, start_date, end_date, params.timeframe)
-        
-        # Calculate performance metrics
-        performance_stats = self._calculate_performance_stats()
-        
-        # Create backtest result
-        backtest_result = BacktestResult(
-            total_return=performance_stats["total_return"],
-            sharpe_ratio=performance_stats["sharpe_ratio"],
-            max_drawdown=performance_stats["max_drawdown"],
-            win_rate=performance_stats["win_rate"],
-            total_trades=len(self.trades),
-            profit_factor=performance_stats["profit_factor"],
-            initial_capital=self.initial_capital,
-            final_capital=self.current_capital,
-            start_date=params.start_date,
-            end_date=params.end_date,
-            timeframe=params.timeframe,
-            trades=self.trades,
-            equity_curve=self.equity_curve
-        )
-        
-        return backtest_result
-    
-    async def _simulate_trading(self, strategy: Strategy, start_date: datetime, end_date: datetime, timeframe: str):
-        """
-        Simulate trading based on strategy configuration
-        This is a mock implementation that generates realistic-looking results
-        """
+        # Generate date range (daily data for now)
+        dates = []
         current_date = start_date
-        days_increment = self._get_timeframe_increment(timeframe)
-        
-        # Track positions for each symbol
-        for symbol in strategy.config.symbols:
-            self.positions[symbol] = {
-                "shares": 0,
-                "avg_price": 0.0,
-                "unrealized_pnl": 0.0
-            }
-        
-        trade_id = 1
-        base_price = 100.0  # Starting price for simulation
-        
         while current_date <= end_date:
-            # Simulate price movement and trading decisions
-            for symbol in strategy.config.symbols:
-                # Generate mock price data (random walk with trend)
-                price_change = random.uniform(-0.03, 0.03)  # ±3% daily change
-                current_price = base_price * (1 + price_change)
-                base_price = current_price  # Update base for next iteration
-                
-                # Mock entry/exit signals based on conditions
-                entry_signal = self._mock_entry_signal(strategy)
-                exit_signal = self._mock_exit_signal(strategy)
-                
-                # Execute trades based on signals
-                if entry_signal and self.positions[symbol]["shares"] == 0:
-                    await self._execute_buy(symbol, current_price, current_date, trade_id, strategy)
-                    trade_id += 1
-                elif exit_signal and self.positions[symbol]["shares"] > 0:
-                    await self._execute_sell(symbol, current_price, current_date, trade_id, strategy)
-                    trade_id += 1
-                
-                # Update equity curve
-                self._update_equity_curve(current_date)
-            
-            # Move to next time period
-            current_date += timedelta(hours=days_increment)
-            
-            # Add small delay to simulate processing
-            await asyncio.sleep(0.001)
-    
-    def _get_timeframe_increment(self, timeframe: str) -> int:
-        """Convert timeframe to hours increment"""
-        timeframe_map = {
-            "1m": 1/60,
-            "5m": 5/60,
-            "15m": 15/60,
-            "30m": 30/60,
-            "1h": 1,
-            "1d": 24,
-            "1w": 168,
-            "1M": 720
+            # Skip weekends for stock data
+            if current_date.weekday() < 5:
+                dates.append(current_date.strftime("%Y-%m-%d"))
+            current_date += timedelta(days=1)
+        
+        # Generate realistic OHLCV data
+        num_days = len(dates)
+        base_price = 100.0
+        
+        data = {
+            "date": dates,
+            "open": [],
+            "high": [],
+            "low": [],
+            "close": [],
+            "volume": []
         }
-        return timeframe_map.get(timeframe, 24)
-    
-    def _mock_entry_signal(self, strategy: Strategy) -> bool:
-        """Mock entry signal generation based on strategy conditions"""
-        # Simple probability-based signal generation
-        # In real implementation, this would evaluate actual technical indicators
-        return random.random() < 0.1  # 10% chance of entry signal
-    
-    def _mock_exit_signal(self, strategy: Strategy) -> bool:
-        """Mock exit signal generation"""
-        # Simple probability-based signal generation
-        return random.random() < 0.15  # 15% chance of exit signal
-    
-    async def _execute_buy(self, symbol: str, price: float, date: datetime, trade_id: int, strategy: Strategy):
-        """Execute a buy order"""
-        # Calculate position size based on risk management
-        position_size = self._calculate_position_size(price, strategy)
-        shares = position_size / price
         
-        if shares * price <= self.current_capital:
-            self.positions[symbol]["shares"] = shares
-            self.positions[symbol]["avg_price"] = price
-            self.current_capital -= shares * price
-            
-            # Record trade
-            trade = {
-                "id": trade_id,
-                "symbol": symbol,
-                "type": "BUY",
-                "shares": shares,
-                "price": price,
-                "value": shares * price,
-                "date": date.isoformat(),
-                "pnl": 0.0
-            }
-            self.trades.append(trade)
-    
-    async def _execute_sell(self, symbol: str, price: float, date: datetime, trade_id: int, strategy: Strategy):
-        """Execute a sell order"""
-        position = self.positions[symbol]
-        if position["shares"] > 0:
-            shares = position["shares"]
-            buy_price = position["avg_price"]
-            sell_value = shares * price
-            buy_value = shares * buy_price
-            pnl = sell_value - buy_value
-            
-            self.current_capital += sell_value
-            self.positions[symbol]["shares"] = 0
-            self.positions[symbol]["avg_price"] = 0.0
-            
-            # Record trade
-            trade = {
-                "id": trade_id,
-                "symbol": symbol,
-                "type": "SELL",
-                "shares": shares,
-                "price": price,
-                "value": sell_value,
-                "date": date.isoformat(),
-                "pnl": pnl
-            }
-            self.trades.append(trade)
-    
-    def _calculate_position_size(self, price: float, strategy: Strategy) -> float:
-        """Calculate position size based on risk management rules"""
-        risk_mgmt = strategy.config.risk_management
+        current_price = base_price
         
-        if risk_mgmt.position_sizing_method == "risk_based":
-            # Risk-based position sizing
-            risk_amount = self.current_capital * risk_mgmt.risk_per_trade
-            stop_loss_distance = price * risk_mgmt.stop_loss
-            if stop_loss_distance > 0:
-                position_size = risk_amount / stop_loss_distance
+        for i in range(num_days):
+            # Generate daily price movement
+            daily_change = random.uniform(-0.05, 0.05)  # -5% to +5% daily change
+            
+            open_price = current_price
+            close_price = open_price * (1 + daily_change)
+            
+            # Generate high and low
+            high_price = max(open_price, close_price) * random.uniform(1.001, 1.02)
+            low_price = min(open_price, close_price) * random.uniform(0.98, 0.999)
+            
+            # Generate volume
+            volume = random.randint(100000, 1000000)
+            
+            data["open"].append(round(open_price, 2))
+            data["high"].append(round(high_price, 2))
+            data["low"].append(round(low_price, 2))
+            data["close"].append(round(close_price, 2))
+            data["volume"].append(volume)
+            
+            current_price = close_price
+        
+        return MockDataFrame(data)
+    
+    async def _add_indicators(self, data: MockDataFrame, params: BacktestParams) -> MockDataFrame:
+        """
+        Add technical indicators to market data
+        """
+        print("DEBUG ENGINE: Adding technical indicators")
+        
+        # Simple Moving Average (20-period)
+        close_prices = data["close"].data
+        sma_20 = []
+        
+        for i in range(len(close_prices)):
+            if i < 19:
+                sma_20.append(None)
             else:
-                position_size = self.current_capital * 0.1  # Default to 10%
-        elif risk_mgmt.position_sizing_method == "percentage":
-            # Percentage of capital
-            position_size = self.current_capital * risk_mgmt.risk_per_trade
-        else:
-            # Fixed size
-            position_size = min(risk_mgmt.max_position_size, self.current_capital * 0.1)
+                avg = sum(close_prices[i-19:i+1]) / 20
+                sma_20.append(round(avg, 2))
         
-        # Ensure position size doesn't exceed max
-        return min(position_size, risk_mgmt.max_position_size)
+        # Simple momentum indicator (price vs SMA)
+        indicator = []
+        indicator_prev = []
+        
+        for i in range(len(close_prices)):
+            if sma_20[i] is not None:
+                momentum = (close_prices[i] / sma_20[i] - 1) * 100  # Percentage above/below SMA
+                indicator.append(round(momentum, 4))
+                
+                # Previous value
+                if i > 0 and indicator:
+                    indicator_prev.append(indicator[-2] if len(indicator) > 1 else None)
+                else:
+                    indicator_prev.append(None)
+            else:
+                indicator.append(None)
+                indicator_prev.append(None)
+        
+        # Add indicators to data
+        data.data["sma_20"] = sma_20
+        data.data["indicator"] = indicator
+        data.data["indicator_prev"] = indicator_prev
+        
+        return data
     
-    def _update_equity_curve(self, date: datetime):
-        """Update equity curve with current portfolio value"""
-        total_value = self.current_capital
+    async def _simulate_strategy(self, data: MockDataFrame, params: BacktestParams):
+        """
+        Simulate strategy execution with entry/exit signals
+        """
+        print("DEBUG ENGINE: Simulating strategy execution")
         
-        # Add unrealized P&L from open positions
-        for symbol, position in self.positions.items():
-            if position["shares"] > 0:
-                # Mock current price (in real implementation, use actual market data)
-                current_price = position["avg_price"] * random.uniform(0.95, 1.05)
-                unrealized_pnl = (current_price - position["avg_price"]) * position["shares"]
-                total_value += position["avg_price"] * position["shares"] + unrealized_pnl
+        symbol = "AAPL"  # Default symbol for simulation
+        position_size = 0
+        entry_price = None
+        entry_date = None
+        trade_id = 1
         
-        self.equity_curve.append({
-            "date": date.isoformat(),
-            "equity": total_value,
-            "return": ((total_value - self.initial_capital) / self.initial_capital) * 100
-        })
+        for i, (idx, row) in enumerate(data.iterrows()):
+            date = row["date"]
+            close_price = row["close"]
+            indicator_val = row.get("indicator")
+            indicator_prev_val = row.get("indicator_prev")
+            
+            # Skip if indicators not ready
+            if indicator_val is None or indicator_prev_val is None:
+                continue
+            
+            # Simple strategy: Buy when price crosses above SMA, sell when crosses below
+            buy_signal = indicator_val > 0 and indicator_prev_val <= 0  # Cross above SMA
+            sell_signal = indicator_val < 0 and indicator_prev_val >= 0  # Cross below SMA
+            
+            has_signal = buy_signal or sell_signal
+            signal_type = "buy" if buy_signal else "sell" if sell_signal else None
+            
+            # Add data analysis row (with context around signals)
+
+            # Execute trades
+            if position_size == 0 and buy_signal:
+                # Enter long position
+                position_value = min(self.cash_balance * 0.95, 10000)  # Risk management
+                if position_value > 100:  # Minimum position size
+                    position_size = int(position_value / close_price)
+                    cost = position_size * close_price
+                    
+                    if cost <= self.cash_balance:
+                        self.cash_balance -= cost
+                        entry_price = close_price
+                        entry_date = date
+                        print(f"DEBUG: BUY {position_size} shares at ${close_price} on {date}")
+            
+            elif position_size > 0 and sell_signal:
+                # Exit long position
+                sale_proceeds = position_size * close_price
+                self.cash_balance += sale_proceeds
+                
+                # Calculate trade PnL
+                pnl = sale_proceeds - (position_size * entry_price)
+                return_pct = (close_price / entry_price - 1) * 100
+                
+                # Create trade record
+                trade = TradeData(
+                    id=trade_id,
+                    symbol=symbol,
+                    side="long",
+                    entry_date=entry_date,
+                    entry_price=entry_price,
+                    exit_date=date,
+                    exit_price=close_price,
+                    quantity=position_size,
+                    pnl=round(pnl, 2),
+                    return_pct=round(return_pct, 2)
+                )
+                
+                self.trades.append(trade)
+                trade_id += 1
+                
+                print(f"DEBUG: SELL {position_size} shares at ${close_price} on {date}, PnL: ${pnl:.2f}")
+                
+                position_size = 0
+                entry_price = None
+                entry_date = None
+            
+            # Update portfolio value and equity curve
+            invested_capital = position_size * close_price if position_size > 0 else 0
+            total_equity = self.cash_balance + invested_capital
+            
+            equity_point = EquityPoint(
+                date=date,
+                total_equity=round(total_equity, 2),
+                cash_balance=round(self.cash_balance, 2),
+                invested_capital=round(invested_capital, 2)
+            )
+            self.equity_curve.append(equity_point)
     
-    def _calculate_performance_stats(self) -> Dict[str, float]:
-        """Calculate performance statistics"""
+    async def _calculate_statistics(self, params: BacktestParams) -> BacktestStats:
+        """
+        Calculate backtest performance statistics
+        """
+        print("DEBUG ENGINE: Calculating performance statistics")
+        
         if not self.equity_curve:
-            return {
-                "total_return": 0.0,
-                "sharpe_ratio": 0.0,
-                "max_drawdown": 0.0,
-                "win_rate": 0.0,
-                "profit_factor": 1.0
-            }
+            # Return default stats if no data
+            return BacktestStats(
+                total_return=0.0,
+                sharpe_ratio=0.0,
+                max_drawdown=0.0,
+                win_rate=0.0,
+                total_trades=0,
+                winning_trades=0,
+                losing_trades=0,
+                profit_factor=0.0,
+                avg_win=0.0,
+                avg_loss=0.0,
+                initial_capital=params.initial_capital,
+                final_equity=params.initial_capital
+            )
         
-        # Total return
-        total_return = ((self.current_capital - self.initial_capital) / self.initial_capital) * 100
+        # Basic stats
+        initial_capital = params.initial_capital
+        final_equity = self.equity_curve[-1].total_equity
+        total_return = ((final_equity / initial_capital) - 1) * 100
         
-        # Calculate returns for Sharpe ratio
+        # Trade statistics
+        total_trades = len(self.trades)
+        winning_trades = len([t for t in self.trades if t.pnl > 0])
+        losing_trades = len([t for t in self.trades if t.pnl < 0])
+        win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
+        
+        # PnL statistics
+        winning_pnls = [t.pnl for t in self.trades if t.pnl > 0]
+        losing_pnls = [t.pnl for t in self.trades if t.pnl < 0]
+        
+        avg_win = (sum(winning_pnls) / len(winning_pnls)) if winning_pnls else 0
+        avg_loss = (sum(losing_pnls) / len(losing_pnls)) if losing_pnls else 0
+        
+        gross_profit = sum(winning_pnls) if winning_pnls else 0
+        gross_loss = abs(sum(losing_pnls)) if losing_pnls else 0
+        profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else 0
+        
+        # Calculate max drawdown
+        max_drawdown = await self._calculate_max_drawdown()
+        
+        # Calculate Sharpe ratio (simplified)
         returns = []
         for i in range(1, len(self.equity_curve)):
-            prev_equity = self.equity_curve[i-1]["equity"]
-            curr_equity = self.equity_curve[i]["equity"]
-            if prev_equity > 0:
-                daily_return = (curr_equity - prev_equity) / prev_equity
-                returns.append(daily_return)
+            prev_equity = self.equity_curve[i-1].total_equity
+            curr_equity = self.equity_curve[i].total_equity
+            daily_return = (curr_equity / prev_equity - 1) if prev_equity > 0 else 0
+            returns.append(daily_return)
         
-        # Sharpe ratio (simplified)
-        if returns:
-            avg_return = sum(returns) / len(returns)
-            volatility = math.sqrt(sum((r - avg_return) ** 2 for r in returns) / len(returns))
-            sharpe_ratio = (avg_return / volatility) if volatility > 0 else 0.0
+        if len(returns) > 1:
+            returns_series = MockSeries(returns)
+            avg_return = returns_series.mean()
+            std_return = returns_series.std()
+            sharpe_ratio = (avg_return / std_return * math.sqrt(252)) if std_return > 0 else 0
         else:
-            sharpe_ratio = 0.0
+            sharpe_ratio = 0
         
-        # Max drawdown
-        peak = self.initial_capital
-        max_drawdown = 0.0
+        return BacktestStats(
+            total_return=round(total_return, 2),
+            sharpe_ratio=round(sharpe_ratio, 2),
+            max_drawdown=round(max_drawdown, 2),
+            win_rate=round(win_rate, 2),
+            total_trades=total_trades,
+            winning_trades=winning_trades,
+            losing_trades=losing_trades,
+            profit_factor=round(profit_factor, 2),
+            avg_win=round(avg_win, 2),
+            avg_loss=round(avg_loss, 2),
+            initial_capital=initial_capital,
+            final_equity=round(final_equity, 2)
+        )
+    
+    async def _calculate_max_drawdown(self) -> float:
+        """
+        Calculate maximum drawdown percentage
+        """
+        if len(self.equity_curve) < 2:
+            return 0.0
+        
+        peak = self.equity_curve[0].total_equity
+        max_dd = 0.0
+        
         for point in self.equity_curve:
-            equity = point["equity"]
-            peak = max(peak, equity)
-            drawdown = (peak - equity) / peak if peak > 0 else 0.0
-            max_drawdown = max(max_drawdown, drawdown)
+            if point.total_equity > peak:
+                peak = point.total_equity
+            
+            drawdown = (peak - point.total_equity) / peak * 100
+            if drawdown > max_dd:
+                max_dd = drawdown
         
-        max_drawdown *= 100  # Convert to percentage
-        
-        # Win rate
-        winning_trades = sum(1 for trade in self.trades if trade.get("pnl", 0) > 0)
-        total_trades = len([trade for trade in self.trades if "pnl" in trade])
-        win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0.0
-        
-        # Profit factor
-        gross_profit = sum(trade["pnl"] for trade in self.trades if trade.get("pnl", 0) > 0)
-        gross_loss = abs(sum(trade["pnl"] for trade in self.trades if trade.get("pnl", 0) < 0))
-        profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else 1.0
-        
-        return {
-            "total_return": total_return,
-            "sharpe_ratio": sharpe_ratio,
-            "max_drawdown": max_drawdown,
-            "win_rate": win_rate,
-            "profit_factor": profit_factor
-        }
+        return max_dd
