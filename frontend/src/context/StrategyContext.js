@@ -245,7 +245,7 @@ export const StrategyProvider = ({ children }) => {
       const interval = setInterval(() => {
         console.log('Periodic strategy refresh...');
         fetchUserStrategies();
-      }, 30000); // 30 seconds
+      }, 300000); // 5 minutes
 
       return () => clearInterval(interval);
     }

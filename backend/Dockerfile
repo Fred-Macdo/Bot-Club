@@ -9,9 +9,7 @@ COPY requirements.txt /app/requirements.txt
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r /app/requirements.txt && \
-    pip install 'pydantic[email,timezone]'
-    
+    pip install --no-cache-dir -r /app/requirements.txt
 
 # Copy the rest of the backend application code into the container at /app
 COPY . /app

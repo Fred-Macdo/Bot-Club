@@ -13,9 +13,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from .routes import auth, user, user_config, strategy
+from .routes import auth, user, user_config, strategy, backtest
 from .database.client import db_client
-
+from .utils.redis_client import redis_client
 from .services.default_strategies import initialize_default_strategies
 
 # Global database client
@@ -40,6 +40,15 @@ async def lifespan(app: FastAPI):
     # Store database in app state for dependency injection
     app.state.db = database
     
+    # Initialize Redis connection
+    try:
+        await redis_client.connect()
+        app.state.redis = redis_client
+        print("Redis initialized successfully")
+    except Exception as e:
+        print(f"Error initializing Redis: {e}")
+        # Don't fail startup if Redis can't be initialized
+    
     # Initialize default strategies (only creates if they don't exist)
     try:
         await initialize_default_strategies(database)
@@ -52,6 +61,14 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     print("Shutting down application...")
+    
+    # Disconnect from Redis
+    try:
+        await redis_client.disconnect()
+    except Exception as e:
+        print(f"Error disconnecting Redis: {e}")
+    
+    # Disconnect from MongoDB
     if motor_client:
         motor_client.close()
 
@@ -83,6 +100,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
 app.include_router(user.router, prefix="/api/users", tags=["users"])
 app.include_router(user_config.router, prefix="/api/user-config", tags=["user-config"])
 app.include_router(strategy.router, prefix="/api/strategy", tags=["strategies"])
+app.include_router(backtest.router, prefix="/api/backtest", tags=["backtests"])
 
 @app.get("/")
 async def root():

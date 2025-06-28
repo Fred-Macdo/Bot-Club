@@ -13,7 +13,8 @@ load_dotenv(dotenv_path=env_path)
 from pymongo import MongoClient
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorClient
+from bson import ObjectId
 from jose import JWTError, jwt
 from typing import Optional, AsyncGenerator
 import logging
@@ -77,19 +78,26 @@ async def close_mongo_connection():
         client.close()
         logger.info("MongoDB connection closed")
 
-async def get_db() -> AsyncGenerator[AsyncIOMotorDatabase, None]:
+async def get_db():
     """Dependency to get database instance"""
     try:
-        db = await db_client.connect()
-        yield db
-    except HTTPException:  # Add this to let FastAPI handle its own exceptions
-        raise
-    except Exception as e: # Catch other (presumably database-related) errors
-        logger.error(f"Database connection error in get_db: {e}") # Updated log message
+        # Make sure to get a client first if it's not already created
+        client = await get_mongodb_client()
+        # Then get the database from the client
+        db = client[os.getenv("MONGO_DB", "bot_club_db")]
+        return db
+    except Exception as e:
+        logger.error(f"Database connection error in get_db: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database connection error"
         )
+
+async def get_mongodb_client():
+    """Get MongoDB client instance"""
+    mongo_url = get_mongo_url()
+    client = AsyncIOMotorClient(mongo_url)
+    return client
 
 async def get_current_user_from_token(
     credentials: HTTPAuthorizationCredentials = Depends(security),

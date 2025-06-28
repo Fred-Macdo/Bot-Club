@@ -27,7 +27,6 @@ from ..crud.strategy import (
     delete_backtest_results_by_strategy,
     get_default_strategies_from_db
 )
-from ..services.backtest import BacktestEngine
 from ..services.default_strategies import get_default_strategies_from_db
 from ..utils.mongo_helpers import PyObjectId
 
@@ -135,6 +134,31 @@ async def get_default_strategies_endpoint(db: AsyncIOMotorDatabase = Depends(get
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to load default strategies: {str(e)}"
+        )
+
+# ...existing code...
+
+@router.get("/defaults/with-ids", response_model=List[dict])
+async def get_default_strategies_with_ids(db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Get default strategies with IDs for backtest selection"""
+    try:
+        default_strategies_collection = db["default_strategies"]
+        strategies = []
+        
+        async for strategy in default_strategies_collection.find({}):
+            # Include the _id for backtest purposes
+            strategies.append({
+                "id": str(strategy["_id"]),
+                "name": strategy["name"],
+                "description": strategy.get("description", ""),
+                "type": "default"
+            })
+        
+        return strategies
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load default strategies with IDs: {str(e)}"
         )
 
 @router.get("/{strategy_id}", response_model=StrategyResponse)
@@ -269,17 +293,24 @@ async def toggle_strategy_trading(
 async def run_backtest_task(
     db: AsyncIOMotorDatabase,
     strategy: Strategy,
-    params: BacktestParams
+    params: BacktestParams,
+    user_id: str
 ):
-    """Background task to run backtest"""
+    """Background task to run backtest via backend_services"""
     try:
-        backtest_engine = BacktestEngine()
-        backtest_result = await backtest_engine.run_backtest(strategy, params)
+        from ..services.backtest_client import BacktestServiceClient
         
-        # Save backtest result to database
-        await save_backtest_result(db, strategy.id, backtest_result)
+        # Create client for backend_services
+        backtest_client = BacktestServiceClient()
         
-        print(f"Backtest completed for strategy {strategy.id}")
+        # Start backtest on backend_services
+        execution_id = await backtest_client.start_backtest(strategy, params, user_id)
+        
+        if execution_id:
+            print(f"Backtest started on backend_services with execution ID: {execution_id}")
+        else:
+            print(f"Failed to start backtest for strategy {strategy.id}")
+            
     except Exception as e:
         print(f"Backtest failed for strategy {strategy.id}: {str(e)}")
 
@@ -309,7 +340,7 @@ async def start_backtest(
         )
     
     # Start backtest as background task
-    background_tasks.add_task(run_backtest_task, db, strategy, backtest_params)
+    background_tasks.add_task(run_backtest_task, db, strategy, backtest_params, current_user.id)
     
     return {
         "message": "Backtest started",
