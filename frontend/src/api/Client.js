@@ -263,6 +263,7 @@ export const strategyApi = {
 
   // Backtest operations
   async startBacktest(strategyId, params) {
+    console.log('Starting backtest for strategy:', strategyId, 'with params:', params);
     return apiClient.post(`/api/strategy/${strategyId}/backtest`, params);
   },
 
@@ -278,6 +279,7 @@ export const strategyApi = {
 // 🚀 BACKTEST API (for direct backtest operations)
 export const backtestApi = {
   async runBacktest(backtestData) {
+    console.log('backtestAPI -> Running backtest with data:', backtestData);
     return apiClient.post('/api/backtest/run', backtestData);
   },
 

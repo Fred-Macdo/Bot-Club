@@ -1,80 +1,93 @@
+"""
+Background task manager for handling async operations
+"""
 import asyncio
-from motor.motor_asyncio import AsyncIOMotorDatabase
-from bson import ObjectId
-from typing import Dict, Any
+import logging
+from typing import Dict, Any, Optional, Callable
 from datetime import datetime
+import uuid
 
-from ..dependencies import get_db, get_mongodb_client
-from ..models.backtest import BacktestParams
-from ..crud import backtest as crud_backtest
+logger = logging.getLogger(__name__)
 
-class TaskManager:
+class BackgroundTaskManager:
+    """Manages background tasks and their status"""
+    
     def __init__(self):
-        self.db: AsyncIOMotorDatabase = None
-        self.client = None
-
-    async def initialize(self):
-        try:
-            # Get a fresh client
-            self.client = await get_mongodb_client()
-            self.db = self.client.get_database()
-            print("Task Manager initialized with DB connection.")
-        except Exception as e:
-            print(f"Error initializing task manager: {e}")
-            self.db = None
-
-    async def start_backtest(self, strategy_data: dict, params: BacktestParams, user_id: ObjectId) -> str:
-        """
-        Creates the backtest execution record and starts the background task.
-        """
-        if not self.db:
-            await self.initialize()
-            if not self.db:
-                raise ValueError("Could not initialize database connection")
-
-        # Create the initial record in the database
-        execution_id = await crud_backtest.create_backtest_execution(
-            db=self.db,
-            user_id=str(user_id),
-            strategy_id=str(strategy_data["_id"]),
-            strategy_name=strategy_data.get("name", "Unnamed Strategy"),
-            config=params.model_dump(mode='json')
-        )
-
-        # Start the actual long-running task in the background
-        asyncio.create_task(self._run_backtest_simulation(execution_id, strategy_data, params))
-
-        return execution_id
-
-    async def _run_backtest_simulation(self, execution_id: str, strategy_data: dict, params: BacktestParams):
-        """This is where the long-running Lumibot simulation would go."""
-        print(f"Starting simulation for backtest ID: {execution_id}")
-        try:
-            # Ensure we have a DB connection
-            if not self.db:
-                await self.initialize()
-                if not self.db:
-                    raise ValueError("Could not initialize database connection")
-                
-            # Simulate work
-            await asyncio.sleep(2)
-            await crud_backtest.update_backtest_status(self.db, execution_id, "running", 30)
+        self.tasks: Dict[str, Dict[str, Any]] = {}
+        self.running_tasks: Dict[str, asyncio.Task] = {}
+    
+    async def create_task(self, 
+                         task_func: Callable, 
+                         task_name: str, 
+                         task_args: tuple = (), 
+                         task_kwargs: dict = None) -> str:
+        """Create and start a new background task"""
+        if task_kwargs is None:
+            task_kwargs = {}
             
-            await asyncio.sleep(3)
-            await crud_backtest.update_backtest_status(self.db, execution_id, "running", 60)
-            
-            await asyncio.sleep(2)
-            await crud_backtest.update_backtest_status(self.db, execution_id, "running", 90)
+        task_id = str(uuid.uuid4())
+        
+        # Create task info
+        task_info = {
+            'id': task_id,
+            'name': task_name,
+            'status': 'running',
+            'created_at': datetime.utcnow(),
+            'progress': 0,
+            'result': None,
+            'error': None
+        }
+        
+        self.tasks[task_id] = task_info
+        
+        # Create and start the actual asyncio task
+        async def wrapped_task():
+            try:
+                logger.info(f"Starting background task: {task_name} ({task_id})")
+                result = await task_func(*task_args, **task_kwargs)
+                self.tasks[task_id]['status'] = 'completed'
+                self.tasks[task_id]['result'] = result
+                self.tasks[task_id]['progress'] = 100
+                logger.info(f"Background task completed: {task_name} ({task_id})")
+            except Exception as e:
+                logger.error(f"Background task failed: {task_name} ({task_id}): {e}")
+                self.tasks[task_id]['status'] = 'failed'
+                self.tasks[task_id]['error'] = str(e)
+            finally:
+                # Clean up the running task reference
+                if task_id in self.running_tasks:
+                    del self.running_tasks[task_id]
+        
+        # Start the task
+        task = asyncio.create_task(wrapped_task())
+        self.running_tasks[task_id] = task
+        
+        return task_id
+    
+    def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """Get the status of a task"""
+        return self.tasks.get(task_id)
+    
+    def get_all_tasks(self) -> Dict[str, Dict[str, Any]]:
+        """Get all tasks"""
+        return self.tasks.copy()
+    
+    async def cancel_task(self, task_id: str) -> bool:
+        """Cancel a running task"""
+        if task_id in self.running_tasks:
+            task = self.running_tasks[task_id]
+            if not task.done():
+                task.cancel()
+                self.tasks[task_id]['status'] = 'cancelled'
+                return True
+        return False
+    
+    def update_task_progress(self, task_id: str, progress: int, message: str = None):
+        """Update task progress"""
+        if task_id in self.tasks:
+            self.tasks[task_id]['progress'] = progress
+            if message:
+                self.tasks[task_id]['message'] = message
 
-            # Finish
-            print(f"Simulation complete for backtest ID: {execution_id}")
-            await crud_backtest.update_backtest_status(self.db, execution_id, "completed", 100)
-
-        except Exception as e:
-            print(f"Backtest simulation failed for {execution_id}: {e}")
-            if self.db:
-                await crud_backtest.update_backtest_status(self.db, execution_id, "failed", error_message=str(e))
-
-
-# Create a singleton instance of the task manager
-task_manager = TaskManager()
+# Global task manager instance
+task_manager = BackgroundTaskManager()

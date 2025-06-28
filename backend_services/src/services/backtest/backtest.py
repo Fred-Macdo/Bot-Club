@@ -11,7 +11,7 @@ from ..models.backtest import (
     EquityPoint,
     Backtest
 )
-from .data_providers import DataProviderFactory
+from ..data_providers import DataProviderFactory
 
 # Mock DataFrame and Series classes for environments without pandas
 class MockSeries:

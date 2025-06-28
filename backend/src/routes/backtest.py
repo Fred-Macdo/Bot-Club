@@ -420,3 +420,60 @@ async def test_data_provider(
             "symbol": symbol,
             "message": f"Failed to connect to {provider}: {str(e)}"
         }
+
+@router.post("/save_result")
+async def save_backtest_result_endpoint(
+    result_data: dict,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Save backtest result from backend_services
+    This endpoint is called by the backend_services after completing a backtest
+    """
+    try:
+        # Extract strategy_id
+        strategy_id = result_data.get('strategy_id')
+        if not strategy_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="strategy_id is required"
+            )
+        
+        # Convert strategy_id to ObjectId
+        from ..utils.mongo_helpers import PyObjectId
+        strategy_obj_id = PyObjectId(strategy_id)
+        
+        # Create BacktestResult object
+        from ..models.strategy import BacktestResult
+        backtest_result = BacktestResult(
+            strategy_id=strategy_obj_id,
+            total_return=result_data.get('total_return', 0.0),
+            sharpe_ratio=result_data.get('sharpe_ratio', 0.0),
+            max_drawdown=result_data.get('max_drawdown', 0.0),
+            win_rate=result_data.get('win_rate', 0.0),
+            total_trades=result_data.get('total_trades', 0),
+            profit_factor=result_data.get('profit_factor', 0.0),
+            initial_capital=result_data.get('initial_capital', 100000.0),
+            final_capital=result_data.get('final_capital', 100000.0),
+            start_date=result_data.get('start_date', ''),
+            end_date=result_data.get('end_date', ''),
+            timeframe=result_data.get('timeframe', '1d'),
+            trades=result_data.get('trades', []),
+            equity_curve=result_data.get('equity_curve', [])
+        )
+        
+        # Save to database
+        from ..crud.strategy import save_backtest_result
+        saved_result = await save_backtest_result(db, strategy_obj_id, backtest_result)
+        
+        return {
+            "message": "Backtest result saved successfully",
+            "result_id": str(saved_result.id)
+        }
+        
+    except Exception as e:
+        print(f"Error saving backtest result: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save backtest result: {str(e)}"
+        )

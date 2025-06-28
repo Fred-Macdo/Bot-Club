@@ -1,4 +1,4 @@
-# backend/services/default_strategies.py
+    # backend/services/default_strategies.py
 from typing import List, Dict, Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from datetime import datetime
