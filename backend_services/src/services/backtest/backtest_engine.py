@@ -6,7 +6,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 
-from models.strategy import Strategy, BacktestParams, BacktestResult, StrategyConfig
+from models.strategy import Strategy, StrategyConfig
+from models.backtest import BacktestParams, BacktestResult
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,7 @@ class BacktestEngine:
     Core backtesting engine that executes trading strategies against historical data
     """
     
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.data_cache = {}  # Cache for historical data
         
     async def run_backtest(
@@ -162,7 +163,7 @@ class BacktestEngine:
         for i, (timestamp, row) in enumerate(data.iterrows()):
             # Check for exit conditions first
             for symbol, position in list(open_positions.items()):
-                if self._check_exit_conditions(exit_conditions, row, symbol, position):
+                if self._check_exit_conditions(exit_conditions, row, symbol, position, timestamp):
                     trade = self._close_position(portfolio, position, row, timestamp)
                     trades.append(trade)
                     del open_positions[symbol]
@@ -212,7 +213,8 @@ class BacktestEngine:
         conditions: List[Dict], 
         row: pd.Series, 
         symbol: str, 
-        position: 'Position'
+        position: 'Position',
+        current_time: pd.Timestamp
     ) -> bool:
         """Check if exit conditions are met"""
         # Simple example: exit after 5 days or 10% profit/loss
@@ -228,7 +230,7 @@ class BacktestEngine:
         if abs(pnl_pct) > 0.1:  # 10% profit or loss
             return True
             
-        if position.days_held > 5:  # Hold for max 5 days
+        if position.get_days_held(current_time) > 5:  # Hold for max 5 days
             return True
             
         return False
@@ -391,9 +393,9 @@ class Position:
         self.entry_time = entry_time
         self.entry_value = entry_value
         
-    @property
-    def days_held(self) -> int:
-        return (datetime.now() - self.entry_time.to_pydatetime()).days
+    def get_days_held(self, current_time: pd.Timestamp) -> int:
+        """Calculates the number of days the position has been held."""
+        return (current_time - self.entry_time).days
 
 
 class Trade:

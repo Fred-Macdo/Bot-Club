@@ -152,6 +152,8 @@ const Backtest = () => {
       console.log('Running backtest with strategy ID:', selectedStrategy);
       console.log('Available strategies:', availableStrategies);
       console.log('Default strategies with IDs:', defaultStrategiesWithIds);
+      console.log('Selected strategy type:', typeof selectedStrategy);
+      console.log('Strategy ID for backtest request:', selectedStrategy);
       
       const response = await backtestApi.runBacktest({
         strategy_id: selectedStrategy,

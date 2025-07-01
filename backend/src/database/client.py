@@ -68,3 +68,9 @@ class DatabaseClient:
 
 # Global database client instance
 db_client = DatabaseClient()
+
+async def get_db() -> AsyncIOMotorDatabase:
+    """
+    FastAPI dependency to get database connection
+    """
+    return await db_client.connect()

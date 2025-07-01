@@ -5,7 +5,7 @@ from typing import Dict, Any
 from datetime import datetime
 
 from ..dependencies import get_db, get_mongodb_client
-from ..models.backtest import BacktestParams
+from ..models.backtest_status_models import BacktestParams
 from ..crud import backtest as crud_backtest
 
 class TaskManager:

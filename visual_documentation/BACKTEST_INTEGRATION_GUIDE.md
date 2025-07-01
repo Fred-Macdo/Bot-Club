@@ -109,7 +109,9 @@ backend_services:
     "start_date": "2024-01-01",
     "end_date": "2024-12-31", 
     "initial_capital": 100000.0,
-    "timeframe": "1d"
+    "timeframe": "1d", 
+    "data_provider": "Polygon"
+    "strategy_id": "6584ac554vbd5s5bb"
 }
 ```
 

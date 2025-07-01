@@ -17,6 +17,7 @@ class BacktestEngine:
     def __init__(self):
         # Get the backend_services URL from environment or use default
         self.backend_services_url = os.getenv("BACKEND_SERVICES_URL", "http://backend_services:8001")
+        print(f"BacktestEngine initialized with backend_services_url: {self.backend_services_url}")
         
     async def run_backtest(
         self, 
@@ -34,17 +35,14 @@ class BacktestEngine:
             BacktestResult with performance metrics and trade history
         """
         logger.info(f"Initiating backtest for strategy: {strategy.get('name', 'Unknown')}")
-        
+        print(f"Backtest parameters: {params}")
+        print(f"sending strategy to backend_services: {strategy}")
         try:
             # Prepare the payload for the API call
+            # The payload is a single object containing both strategy and params
             payload = {
                 "strategy": strategy,
-                "params": {
-                    "start_date": params.start_date,
-                    "end_date": params.end_date,
-                    "initial_capital": params.initial_capital,
-                    "timeframe": params.timeframe
-                }
+                "params": params.model_dump(mode="json")
             }
             
             async with httpx.AsyncClient(timeout=300.0) as client:  # 5 minute timeout for backtests

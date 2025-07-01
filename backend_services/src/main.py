@@ -69,10 +69,13 @@ class BackendService:
                 if field not in data:
                     return web.json_response({"error": f"Missing required field: {field}"}, status=400)
             
+            # The user_id is passed in the payload from the main backend service
+            user_id = data['user_id']
+            
             # Run the backtest
             backtest_id = await self.backtest_service.start_backtest(
                 strategy_id=data['strategy_id'],
-                user_id=data['user_id'], 
+                user_id=user_id, 
                 params=data
             )
             

@@ -279,16 +279,30 @@ export const strategyApi = {
 // 🚀 BACKTEST API (for direct backtest operations)
 export const backtestApi = {
   async runBacktest(backtestData) {
-    console.log('backtestAPI -> Running backtest with data:', backtestData);
+    console.log("backtestAPI -> Running backtest with data:", backtestData);
+
+    // Dynamically determine strategy_type if not provided
+    if (!backtestData.strategy_type) {
+      try {
+        const defaultStrategies = await strategyApi.getDefaultStrategiesWithIds();
+        const isDefault = defaultStrategies.some(s => s.id === backtestData.strategy_id);
+        backtestData.strategy_type = isDefault ? 'default' : 'user';
+        console.log(`Determined strategy_type: ${backtestData.strategy_type}`);
+      } catch (error) {
+        console.error("Could not determine strategy type, defaulting to 'user'", error);
+        backtestData.strategy_type = 'user'; // Default to user if check fails
+      }
+    }
+
     return apiClient.post('/api/backtest/run', backtestData);
   },
 
   async getBacktestStatus(backtestId) {
-    return apiClient.get(`/api/backtest/${backtestId}/status`);
+    return apiClient.get(`/api/backtest/status/${backtestId}`);
   },
 
   async getUserBacktests() {
-    return apiClient.get('/api/backtest/');
+    return apiClient.get('/api/backtest/user');
   },
 
   async getBacktestById(backtestId) {

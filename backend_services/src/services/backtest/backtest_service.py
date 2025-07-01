@@ -9,8 +9,9 @@ import traceback
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from models.strategy import Strategy, BacktestParams, BacktestResult, StrategyConfig
-from models.backtest import BacktestExecution, BacktestStatus
+from models.strategy import Strategy
+from models.backtest import BacktestParams, BacktestResult
+from models.backtest_status_models import BacktestExecution, BacktestStatus
 from config import API_SERVICE_URL
 from .backtest_engine import BacktestEngine
 
@@ -85,10 +86,12 @@ class BacktestService:
             
             # Create BacktestParams object
             backtest_params = BacktestParams(
+                strategy_id=params.get('strategy_id'),  # Use the strategy_id from params instead of strategy['_id']
                 start_date=params.get('start_date'),
                 end_date=params.get('end_date'),
                 initial_capital=params.get('initial_capital', 100000.0),
-                timeframe=params.get('timeframe', '1d')
+                timeframe=params.get('timeframe', '1d'),
+                data_provider=params.get('data_provider', 'mock')  # Add the missing data_provider
             )
             
             # Update status

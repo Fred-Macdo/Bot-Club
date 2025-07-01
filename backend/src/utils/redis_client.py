@@ -97,6 +97,10 @@ class RedisClient:
             elif hasattr(self.redis, 'disconnect'):
                 await self.redis.disconnect()
             print("📤 Disconnected from Redis")
+
+    async def hset(self, key: str, mapping: Dict[str, Any]):
+        """Proxy for the hset command."""
+        return await self.redis.hset(key, mapping=mapping)
     
     # Backtest Task Management
     async def set_backtest_status(self, backtest_id: str, status: str, progress: int = 0, **kwargs):

@@ -4,12 +4,9 @@ from typing import List, Dict, Any, Optional
 import random
 import math
 
-from ..models.backtest import (
-    BacktestParams,
-    BacktestStats,
-    TradeData,
-    EquityPoint,
-    Backtest
+from ...models.backtest_status_models import (
+    BacktestExecution,
+    BacktestStatus
 )
 from ..data_providers import DataProviderFactory
 

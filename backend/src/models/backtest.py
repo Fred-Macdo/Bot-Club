@@ -6,12 +6,13 @@ from typing import List, Optional, Dict, Any
 from bson import ObjectId
 from ..utils.mongo_helpers import PyObjectId
 
-# FIX: This model should ONLY contain parameters for the simulation engine.
 class BacktestParams(BaseModel):
+    """Parameters for running a backtest"""
+    strategy_id: str
     initial_capital: float
     timeframe: str
-    start_date: date # Use the 'date' type for validation
-    end_date: date   # Use the 'date' type for validation
+    start_date: date
+    end_date: date
     data_provider: str
 
 class TradeData(BaseModel):
