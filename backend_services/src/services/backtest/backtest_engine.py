@@ -1,4 +1,5 @@
 import asyncio
+import lumibot
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -6,6 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 
+from services.data_providers import DataProviderFactory
 from models.strategy import Strategy, StrategyConfig
 from models.backtest import BacktestParams, BacktestResult
 
@@ -36,7 +38,7 @@ class BacktestEngine:
             BacktestResult with performance metrics and trade history
         """
         logger.info(f"Starting backtest for strategy: {strategy.get('name', 'Unknown')}")
-        
+        logger.info(f"This is the strategy:{strategy}")
         # Parse strategy configuration
         config = strategy.get('config', {})
         symbols = config.get('symbols', ['AAPL'])
@@ -49,7 +51,8 @@ class BacktestEngine:
             params.end_date, 
             timeframe
         )
-        
+        logger.info(f"these are the params:{params}")
+        logger.info(f"type of the `strategy_id`:{type(params.strategy_id)}")
         # Initialize portfolio
         portfolio = Portfolio(initial_capital=params.initial_capital)
         
@@ -65,7 +68,7 @@ class BacktestEngine:
         
         # Create result object
         result = BacktestResult(
-            strategy_id=strategy.get('_id'),
+            strategy_id=params.strategy_id,
             total_return=metrics['total_return'],
             sharpe_ratio=metrics['sharpe_ratio'],
             max_drawdown=metrics['max_drawdown'],

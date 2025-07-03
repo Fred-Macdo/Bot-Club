@@ -9,7 +9,6 @@ import traceback
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from models.strategy import Strategy
 from models.backtest import BacktestParams, BacktestResult
 from models.backtest_status_models import BacktestExecution, BacktestStatus
 from config import API_SERVICE_URL

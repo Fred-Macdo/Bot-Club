@@ -24,6 +24,7 @@ numpy>=1.24.0
 pandas>=2.0.0
 
 # Technical analysis (alternatives to TA-Lib)
+polars-talib==0.1.5
 pandas-ta>=0.3.14b0
 ta>=0.10.2
 finta>=1.3
